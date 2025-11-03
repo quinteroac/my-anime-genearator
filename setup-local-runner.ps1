@@ -12,16 +12,71 @@ param(
 Write-Host "=== GitHub Actions Local Runner Setup ===" -ForegroundColor Green
 Write-Host ""
 
-# Check if docker is available
+# Check prerequisites
+$missing = @()
+
+# Check Docker
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Write-Host "Error: Docker is not installed or not in PATH" -ForegroundColor Red
-    Write-Host "Please install Docker Desktop from https://www.docker.com/products/docker-desktop" -ForegroundColor Yellow
+    Write-Host "❌ Docker not found" -ForegroundColor Red
+    $missing += "Docker Desktop"
+} else {
+    Write-Host "✅ Docker found: $(docker --version)" -ForegroundColor Green
+}
+
+# Check Git
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host "❌ Git not found" -ForegroundColor Red
+    $missing += "Git"
+} else {
+    Write-Host "✅ Git found: $(git --version)" -ForegroundColor Green
+}
+
+# Check PowerShell version (need 5.1+)
+if ($PSVersionTable.PSVersion.Major -lt 5) {
+    Write-Host "❌ PowerShell version too old (need 5.1+)" -ForegroundColor Red
+    $missing += "PowerShell 5.1+"
+} else {
+    Write-Host "✅ PowerShell version: $($PSVersionTable.PSVersion)" -ForegroundColor Green
+}
+
+Write-Host ""
+
+# If missing requirements, show installation instructions
+if ($missing.Count -gt 0) {
+    Write-Host "Missing required software:" -ForegroundColor Red
+    foreach ($item in $missing) {
+        Write-Host "  - $item" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    Write-Host "Installation instructions:" -ForegroundColor Cyan
+    Write-Host ""
+    
+    if ($missing -contains "Docker Desktop") {
+        Write-Host "  Docker Desktop:" -ForegroundColor White
+        Write-Host "    https://www.docker.com/products/docker-desktop" -ForegroundColor Gray
+        Write-Host "    - Download and install Docker Desktop for Windows" -ForegroundColor Gray
+        Write-Host "    - Make sure WSL 2 is enabled (Docker Desktop will prompt you)" -ForegroundColor Gray
+        Write-Host ""
+    }
+    
+    if ($missing -contains "Git") {
+        Write-Host "  Git:" -ForegroundColor White
+        Write-Host "    https://git-scm.com/download/win" -ForegroundColor Gray
+        Write-Host "    - Download and install Git for Windows" -ForegroundColor Gray
+        Write-Host ""
+    }
+    
+    if ($missing -contains "PowerShell 5.1+") {
+        Write-Host "  PowerShell:" -ForegroundColor White
+        Write-Host "    PowerShell 5.1 comes with Windows 10/11" -ForegroundColor Gray
+        Write-Host "    Or install PowerShell 7+ from: https://aka.ms/powershell-release" -ForegroundColor Gray
+        Write-Host ""
+    }
+    
     exit 1
 }
 
-Write-Host "Checking Docker installation..." -ForegroundColor Cyan
-$dockerVersion = docker --version
-Write-Host "Found: $dockerVersion" -ForegroundColor Green
+Write-Host "All prerequisites are installed! ✓" -ForegroundColor Green
 Write-Host ""
 
 # Remove existing runner

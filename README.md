@@ -75,14 +75,39 @@ This repository includes a GitHub Actions workflow for automatic Docker image bu
 
 The workflow is configured to use a **self-hosted runner** to avoid disk space limitations of GitHub-hosted runners.
 
-**To set up the local runner:**
+#### Prerequisites
 
-1. **Get a GitHub Personal Access Token:**
+Before setting up the runner, you need to install:
+
+1. **Docker Desktop** (required)
+   - Download from: https://www.docker.com/products/docker-desktop
+   - Make sure WSL 2 is enabled (Docker Desktop will prompt you during installation)
+   - Verify installation: `docker --version`
+
+2. **Git** (required)
+   - Download from: https://git-scm.com/download/win
+   - Usually already installed on Windows
+   - Verify installation: `git --version`
+
+3. **PowerShell 5.1+** (required)
+   - Comes pre-installed on Windows 10/11
+   - Or install PowerShell 7+ from: https://aka.ms/powershell-release
+   - Verify installation: `$PSVersionTable.PSVersion`
+
+4. **Disk Space** (recommended)
+   - At least 50GB free space for Docker images and build cache
+   - PyTorch and dependencies are large (~2-3GB)
+
+5. **GitHub Personal Access Token** (required for setup)
    - Go to: https://github.com/settings/tokens/new
    - Select `actions` scope
    - Click "Generate token"
 
-2. **Run the setup script:**
+The setup script (`setup-local-runner.ps1`) will automatically check for Docker and Git.
+
+**To set up the local runner:**
+
+1. **Run the setup script:**
    ```powershell
    .\setup-local-runner.ps1
    ```
@@ -92,13 +117,13 @@ The workflow is configured to use a **self-hosted runner** to avoid disk space l
    - Download the latest GitHub Actions runner
    - Configure it for this repository
 
-3. **Start the runner:**
+2. **Start the runner:**
    ```powershell
    cd _runner
    .\run.cmd
    ```
 
-4. **Trigger a workflow:**
+3. **Trigger a workflow:**
    - Push to `main` branch, or
    - Go to Actions → "Build Docker Image" → "Run workflow"
 
