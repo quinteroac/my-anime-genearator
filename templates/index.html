@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Anime Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="inner-container">
+        <div id="promptHistory"></div>
+        
+        <div id="imagesContainer" class="images-container"></div>
+    </div>
+    
+    <div class="input-group">
+        <div class="input-wrapper">
+            <button class="new-prompt-btn" onclick="startNewPrompt()" title="Nuevo Prompt">+</button>
+            <input 
+                type="text" 
+                id="promptInput" 
+                placeholder="Type to generate"
+                autocomplete="off"
+            />
+ 
+            <select id="resolutionSelect" class="resolution-select">
+                <option value="1024x1024">1:1</option>
+                <option value="768x1532">1:2</option>
+                <option value="968x1322">2:3</option>
+            </select>
+ 
+            <button id="generateBtn" onclick="generateImages()" class="generate-icon-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" fill="#d0d0d0"/>
+                    <path d="M12 8v8M8 12l4-4 4 4" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <p>Generando imágenes... Esto puede tomar unos momentos.</p>
+    </div>
+    
+    <div id="error" class="error hidden"></div>
+    
+    <!-- Modal para vista a tamaño completo -->
+    <div id="imageModal" class="modal" onclick="closeModal()">
+        <span class="modal-close">&times;</span>
+        <img class="modal-content" id="modalImage" onclick="event.stopPropagation()">
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

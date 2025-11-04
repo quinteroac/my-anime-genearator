@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 
 # Avoid interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -32,17 +32,19 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install PyTorch first (large packages) - using official PyTorch index
+# CUDA 12.1 for optimal RTX 4090 and RTX 5090 support
 RUN pip install --no-cache-dir --default-timeout=600 \
-    --index-url https://download.pytorch.org/whl/cu118 \
+    --index-url https://download.pytorch.org/whl/cu121 \
     torch torchvision torchaudio
 
 # Install other dependencies
 RUN pip install --no-cache-dir --default-timeout=300 \
-    numpy>=1.24.0 pillow>=9.5.0 opencv-python>=4.7.0 requests>=2.28.0 flask>=2.3.0
+    numpy>=1.24.0 pillow>=9.5.0 opencv-python>=4.7.0 requests>=2.28.0 flask>=2.3.0 flask-cors>=3.0.10 websocket-client>=1.6.0
 
 # Install xformers separately with longer timeout (it's a large package)
+# CUDA 12.1 for optimal RTX 4090 and RTX 5090 support
 RUN pip install --no-cache-dir --default-timeout=600 \
-    --index-url https://download.pytorch.org/whl/cu118 \
+    --index-url https://download.pytorch.org/whl/cu121 \
     xformers
 
 # Clone ComfyUI, install dependencies
@@ -66,12 +68,18 @@ COPY civitai_downloader.py /app/civitai_downloader.py
 COPY civitai_web.py /app/civitai_web.py
 RUN chmod +x /app/civitai_downloader.py /app/civitai_web.py
 
+# Copy Anime Generator script and static files
+COPY anime_generator.py /app/anime_generator.py
+COPY templates /app/templates
+COPY static /app/static
+RUN chmod +x /app/anime_generator.py
+
 # Copy entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Expose ports (ComfyUI: 8188, CivitAI Downloader: 7860)
-EXPOSE 8188 7860
+# Expose ports (ComfyUI: 8188, CivitAI Downloader: 7860, Anime Generator: 5000)
+EXPOSE 8188 7860 5000
 
 # Set entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -13,4 +13,17 @@ pip-delete-this-directory.txt
 README.md
 *.md
 .DS_Store
+# GitHub Actions runner files (not needed in container)
+_runner/
+*.log
+# Documentation and scripts not needed in container
+setup-local-runner.ps1
+push-to-github.*
+# Development files
+.github/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 

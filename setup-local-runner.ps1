@@ -98,9 +98,9 @@ if (Test-Path "_runner") {
 
 # Prompt for token if not provided
 if ([string]::IsNullOrEmpty($Token)) {
-    Write-Host "You need a GitHub Personal Access Token with 'actions' permission" -ForegroundColor Yellow
+    Write-Host "You need a GitHub Personal Access Token with 'repo' permission" -ForegroundColor Yellow
     Write-Host "Get one from: https://github.com/settings/tokens/new" -ForegroundColor Cyan
-    Write-Host "Select 'actions' scope and click 'Generate token'" -ForegroundColor Cyan
+    Write-Host "Select 'repo' scope (Full control of private repositories) and click 'Generate token'" -ForegroundColor Cyan
     Write-Host ""
     $Token = Read-Host "Enter your GitHub Personal Access Token"
 }
