@@ -47,13 +47,13 @@ generation_status = {}
 BASE_WORKFLOW = {
     "3": {
         "inputs": {
-            "seed": 1110661650420537,
-            "steps": 30,
-            "cfg": 4,
+            "seed": 131738907956704,
+            "steps": 50,
+            "cfg": 5,
             "sampler_name": "res_multistep",
-            "scheduler": "simple",
+            "scheduler": "linear_quadratic",
             "denoise": 1,
-            "model": ["4", 0],
+            "model": ["14", 0],
             "positive": ["6", 0],
             "negative": ["7", 0],
             "latent_image": ["13", 0]
@@ -68,8 +68,8 @@ BASE_WORKFLOW = {
     },
     "6": {
         "inputs": {
-            "text": "You are an assistant designed to generate high quality anime images based on textual prompts. <Prompt Start> @happoubi jin,@gibagiba,@scottie (phantom2),full body, the girl is moving her body in a beautiful seductive dance for the boy,warm and dramatic lighting,pov, 1girl,melusine (fate), melusine (second ascension) (fate), white hair,sidelocks, long hair,forked eyebrows, strapless, crop top, see-through_skirt,gold trim, jewelry,white harem outfit, harem pants,veil, blush, dancing, belly dancing,vertical split screen, closeup,profile ,1boy,senji muramasa (fate), red hair, yellow eyes, igote,blush,parted lips,",
-            "clip": ["4", 1]
+            "text": "You are an assistant designed to generate high quality anime images based on textual prompts. <Prompt Start> Anime illustration of a girl with long black hair wearing a dark sailor uniform with a large red ribbon, holding a vintage rangefinder camera up to her right eye. She stands in a field of tall golden grass dotted with red and white flowers and purple lavender spikes. The background is a vivid sunset sky with orange, yellow, and blue clouds, backlit by intense sunlight creating strong lens flare and rim light on her hair and body. Several small glowing light particles drift across the scene.",
+            "clip": ["14", 1]
         },
         "class_type": "CLIPTextEncode",
         "_meta": {"title": "CLIP Text Encode (Positive Prompt)"}
@@ -108,12 +108,23 @@ BASE_WORKFLOW = {
     },
     "13": {
         "inputs": {
-            "width": 1024,
-            "height": 1024,
-            "batch_size": 1  # Generar 1 imagen para pruebas más rápidas
+            "width": 816,
+            "height": 1216,
+            "batch_size": 1
         },
         "class_type": "EmptySD3LatentImage",
         "_meta": {"title": "EmptySD3LatentImage"}
+    },
+    "14": {
+        "inputs": {
+            "lora_name": "reakaaka_enhancement_bundle_NetaYumev35_v0.37.2.safetensors",
+            "strength_model": 1,
+            "strength_clip": 1,
+            "model": ["11", 0],
+            "clip": ["4", 1]
+        },
+        "class_type": "LoraLoader",
+        "_meta": {"title": "Cargar LoRA"}
     }
 }
 
@@ -132,9 +143,9 @@ def queue_prompt(workflow, client_id=str(uuid.uuid4())):
         if response.status_code == 200:
             return response.json()
         else:
-            raise Exception(f"Error al enviar prompt: {response.status_code} - {response.text}")
+            raise Exception(f"Error sending prompt: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"Error en queue_prompt: {e}")
+        print(f"Error in queue_prompt: {e}")
         raise
 
 def get_image_filename(prompt_id):
@@ -145,7 +156,7 @@ def get_image_filename(prompt_id):
             response = requests.get(f"{COMFYUI_URL}/history/{prompt_id}", timeout=5)
             if response.status_code == 200:
                 history_data = response.json()
-                print(f"✓ Endpoint /history/{prompt_id} funciona correctamente")
+                print(f"[OK] Endpoint /history/{prompt_id} works correctly")
                 
                 # El endpoint /history/{prompt_id} devuelve directamente los datos del prompt
                 # Buscar imágenes en el nodo SaveImage (nodo 9)
@@ -153,45 +164,45 @@ def get_image_filename(prompt_id):
                     node_outputs = history_data["outputs"]["9"]
                     if "images" in node_outputs:
                         images = node_outputs["images"]
-                        print(f"✓ Imágenes encontradas en endpoint específico: {len(images) if isinstance(images, list) else 1}")
+                        print(f"[OK] Images found in specific endpoint: {len(images) if isinstance(images, list) else 1}")
                         # Asegurarnos de que es una lista
                         if isinstance(images, list):
                             return images
                         else:
                             return [images]
         except requests.exceptions.RequestException as e:
-            print(f"⚠ Endpoint /history/{prompt_id} no disponible (status: {getattr(e.response, 'status_code', 'N/A')}), usando fallback")
+            print(f"[WARN] Endpoint /history/{prompt_id} not available (status: {getattr(e.response, 'status_code', 'N/A')}), using fallback")
         
         # Fallback: obtener el historial completo y buscar el prompt_id
-        print(f"Usando historial completo para buscar prompt_id: {prompt_id}")
+        print(f"Using full history to search for prompt_id: {prompt_id}")
         response = requests.get(f"{COMFYUI_URL}/history", timeout=5)
         if response.status_code == 200:
             history = response.json()
             
             # El historial tiene esta estructura: {prompt_id: {status: {...}, outputs: {...}}}
             # Buscar el prompt_id específico en el historial
-            print(f"Buscando prompt_id '{prompt_id}' en historial. Total de entradas: {len(history)}")
+            print(f"Searching for prompt_id '{prompt_id}' in history. Total entries: {len(history)}")
             if prompt_id in history:
                 prompt_data = history[prompt_id]
-                print(f"✓ Prompt_id encontrado en historial")
+                print(f"[OK] Prompt_id found in history")
                 
                 # Buscar imágenes en el nodo SaveImage (nodo 9)
                 if "outputs" in prompt_data and "9" in prompt_data["outputs"]:
                     node_outputs = prompt_data["outputs"]["9"]
                     if "images" in node_outputs:
                         images = node_outputs["images"]
-                        print(f"✓ Imágenes encontradas en historial completo: {len(images) if isinstance(images, list) else 1}")
+                        print(f"[OK] Images found in full history: {len(images) if isinstance(images, list) else 1}")
                         # Asegurarnos de que es una lista
                         if isinstance(images, list):
-                            print(f"  Nombres de archivos: {[img.get('filename', str(img)) if isinstance(img, dict) else img for img in images[:4]]}")
+                            print(f"  Filenames: {[img.get('filename', str(img)) if isinstance(img, dict) else img for img in images[:4]]}")
                             return images
                         else:
-                            print(f"  Nombre de archivo: {images.get('filename', str(images)) if isinstance(images, dict) else images}")
+                            print(f"  Filename: {images.get('filename', str(images)) if isinstance(images, dict) else images}")
                             return [images]
                 else:
-                    print(f"⚠ No se encontraron outputs en el nodo 9 para prompt_id {prompt_id}")
+                    print(f"[WARN] No outputs found in node 9 for prompt_id {prompt_id}")
             else:
-                print(f"⚠ Prompt_id '{prompt_id}' no encontrado en historial. IDs disponibles: {list(history.keys())[:5]}...")
+                print(f"[WARN] Prompt_id '{prompt_id}' not found in history. Available IDs: {list(history.keys())[:5]}...")
             
             # Si aún no encontramos, buscar en toda la estructura
             # Pero priorizar el prompt_id exacto
@@ -207,7 +218,7 @@ def get_image_filename(prompt_id):
                                     return [images]
         return None
     except Exception as e:
-        print(f"Error al obtener historial para prompt_id {prompt_id}: {e}")
+        print(f"Error getting history for prompt_id {prompt_id}: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -277,8 +288,35 @@ def wait_for_completion(client_id, prompt_id, max_wait=300):
     
     # Esperar hasta que se complete o timeout
     start_time = time.time()
-    check_interval = 1  # Verificar cada segundo
+    check_interval = 0.5  # Verificar cada 0.5 segundos para respuesta más rápida
     last_check = 0
+    
+    # Primera verificación inmediata (para el mock que guarda instantáneamente)
+    image_info = get_image_filename(prompt_id)
+    if image_info and len(image_info) > 0:
+        valid_images = []
+        for img in image_info:
+            if isinstance(img, dict):
+                valid_images.append({
+                    "filename": img.get("filename", ""),
+                    "subfolder": img.get("subfolder", ""),
+                    "type": img.get("type", "output")
+                })
+            elif isinstance(img, str):
+                valid_images.append({
+                    "filename": img,
+                    "subfolder": "",
+                    "type": "output"
+                })
+        
+        if valid_images:
+            print(f"[OK] Images found immediately, returning {len(valid_images)} image(s)")
+            if ws:
+                try:
+                    ws.close()
+                except:
+                    pass
+            return valid_images
     
     while time.time() - start_time < max_wait:
         # Verificar si hay imágenes disponibles en el historial
@@ -368,7 +406,7 @@ def generate_images(positive_prompt, negative_prompt=None, width=1024, height=10
     # Extraer solo la parte del prompt original y agregar el nuevo
     if "<Prompt Start>" in base_positive:
         parts = base_positive.split("<Prompt Start>")
-        new_positive = parts[0] + "<Prompt Start> " + positive_prompt
+        new_positive = parts[0] + "<Prompt Start> Digital anime illustration " + positive_prompt
     else:
         new_positive = base_positive + " " + positive_prompt
     
@@ -423,13 +461,13 @@ def api_generate():
         height = data.get('height', 1024)
         
         if not prompt:
-            return jsonify({"success": False, "error": "Prompt vacío"}), 400
+            return jsonify({"success": False, "error": "Empty prompt"}), 400
         
         # Validar dimensiones
         width = int(width)
         height = int(height)
         if width <= 0 or height <= 0:
-            return jsonify({"success": False, "error": "Dimensiones inválidas"}), 400
+            return jsonify({"success": False, "error": "Invalid dimensions"}), 400
         
         # Generar imágenes
         result = generate_images(prompt, width=width, height=height)
@@ -481,9 +519,9 @@ def serve_image(filename):
                         headers={'Content-Disposition': f'{"attachment" if download else "inline"}; filename="{filename}"'} if download else {}
                     )
             except Exception as e:
-                print(f"Error al obtener imagen de ComfyUI: {e}")
+                print(f"Error getting image from ComfyUI: {e}")
             
-            return jsonify({"error": f"Imagen no encontrada: {filename}"}), 404
+            return jsonify({"error": f"Image not found: {filename}"}), 404
         
         return send_from_directory(
             directory,
@@ -500,7 +538,162 @@ def get_status(prompt_id):
     """Obtener estado de una generación"""
     if prompt_id in generation_status:
         return jsonify(generation_status[prompt_id])
-    return jsonify({"error": "Prompt ID no encontrado"}), 404
+    return jsonify({"error": "Prompt ID not found"}), 404
+
+@app.route('/api/convert-to-natural-language', methods=['POST'])
+def convert_to_natural_language():
+    """Convertir prompt de tags a lenguaje natural usando OpenAI GPT-4o"""
+    try:
+        data = request.get_json()
+        tags_prompt = data.get('prompt', '').strip()
+        
+        print(f"[DEBUG] convert-to-natural-language called with tags prompt: '{tags_prompt[:100]}...'")
+        
+        if not tags_prompt:
+            return jsonify({"success": False, "error": "Empty prompt"}), 400
+        
+        # Obtener API key de OpenAI desde variable de entorno
+        openai_api_key = os.environ.get('OPENAI_API_KEY')
+        print(f"[DEBUG] OPENAI_API_KEY exists: {bool(openai_api_key)}, length: {len(openai_api_key) if openai_api_key else 0}")
+        if not openai_api_key:
+            return jsonify({"success": False, "error": "OPENAI_API_KEY not configured"}), 500
+        
+        # System prompt para convertir tags a lenguaje natural
+        system_prompt = (
+            "You are an expert AI art prompt engineer. I will provide you with a prompt composed of danbooru tags and other AI art tags. "
+            "Your task is to convert this tag-based prompt into a detailed, natural language description that is rich, descriptive, and flows naturally. "
+            "Write it as if you were describing the scene to another artist in natural, flowing English. "
+            "Make it detailed, vivid, and evocative while preserving all the important information from the tags. "
+            "Do not use tag format or comma-separated lists. Write in complete sentences with proper grammar. "
+            "The output should be a cohesive paragraph or paragraphs that describe the image in natural language."
+        )
+        
+        # Llamar a OpenAI API
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {openai_api_key}"
+        }
+        
+        payload = {
+            "model": "gpt-4o",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Convert the following tag-based prompt to natural language:\n\n{tags_prompt}"}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 800
+        }
+        
+        print(f"[DEBUG] Calling OpenAI API to convert tags to natural language")
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        print(f"[DEBUG] OpenAI API response status: {response.status_code}")
+        if response.status_code == 200:
+            result = response.json()
+            natural_language_prompt = result["choices"][0]["message"]["content"].strip()
+            print(f"[DEBUG] Natural language prompt received: '{natural_language_prompt[:100]}...'")
+            return jsonify({
+                "success": True,
+                "natural_language_prompt": natural_language_prompt
+            })
+        else:
+            error_msg = response.text
+            print(f"[DEBUG] OpenAI API error: {response.status_code} - {error_msg}")
+            return jsonify({
+                "success": False,
+                "error": f"OpenAI API error: {response.status_code} - {error_msg}"
+            }), 500
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": f"Error converting to natural language: {str(e)}"
+        }), 500
+
+@app.route('/api/improve-prompt', methods=['POST'])
+def improve_prompt():
+    """Mejorar prompt usando OpenAI GPT-4o"""
+    try:
+        data = request.get_json()
+        user_prompt = data.get('prompt', '').strip()
+        step_name = data.get('step_name', '')
+        
+        print(f"[DEBUG] improve-prompt called with prompt: '{user_prompt}', step: '{step_name}'")
+        
+        if not user_prompt:
+            return jsonify({"success": False, "error": "Empty prompt"}), 400
+        
+        # Obtener API key de OpenAI desde variable de entorno
+        openai_api_key = os.environ.get('OPENAI_API_KEY')
+        print(f"[DEBUG] OPENAI_API_KEY exists: {bool(openai_api_key)}, length: {len(openai_api_key) if openai_api_key else 0}")
+        if not openai_api_key:
+            return jsonify({"success": False, "error": "OPENAI_API_KEY not configured"}), 500
+        
+        # Construir system prompt con el nombre del paso (según especificación del usuario)
+        # Importante: el usuario enviará un prompt completo concatenado, pero debemos responder solo con tags para el paso actual
+        system_prompt = (
+            f"You are an artist who excels at creating AI paintings using the Lumina model and can craft high-quality Lumina prompts. "
+            f"I want to use AI for my creative process. I will provide you with a complete prompt that has been built step by step. "
+            f"You need to refine ONLY the <{step_name}> part of it. Even though you will see the full prompt, you must respond ONLY with tags for the <{step_name}> step. "
+            f"Reply ONLY with tags separated by comma for the {step_name} step. Use danbooru tags. If you have to refer to an author, use @ followed by his name, example @gemart. "
+            f"Do NOT include tags from other steps, only the tags relevant to <{step_name}>."
+        )
+        
+        # Llamar a OpenAI API
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {openai_api_key}"
+        }
+        
+        payload = {
+            "model": "gpt-4o",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 500
+        }
+        
+        print(f"[DEBUG] Calling OpenAI API with model: gpt-4o")
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        print(f"[DEBUG] OpenAI API response status: {response.status_code}")
+        if response.status_code == 200:
+            result = response.json()
+            improved_prompt = result["choices"][0]["message"]["content"].strip()
+            print(f"[DEBUG] Improved prompt received: '{improved_prompt[:100]}...'")
+            return jsonify({
+                "success": True,
+                "improved_prompt": improved_prompt
+            })
+        else:
+            error_msg = response.text
+            print(f"[DEBUG] OpenAI API error: {response.status_code} - {error_msg}")
+            return jsonify({
+                "success": False,
+                "error": f"OpenAI API error: {response.status_code} - {error_msg}"
+            }), 500
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": f"Error improving prompt: {str(e)}"
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('ANIME_GENERATOR_PORT', 5000))

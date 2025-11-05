@@ -8,51 +8,218 @@
     <meta http-equiv="Expires" content="0">
     <title>Anime Generator</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body>
-    <div class="inner-container">
-        <div id="promptHistory"></div>
+    {% raw %}
+    <div id="app">
+        <!-- Progress indicator para modo interactivo (parte superior) -->
+        <div v-if="promptMode === 'interactive' && currentStep >= 0 && currentStep < steps.length" class="step-indicator-top">
+            <div class="step-progress-bar">
+                <div class="step-progress-fill" :style="{ width: progressPercentage + '%' }"></div>
+            </div>
+            <div class="step-info">
+                <span class="step-number">Step {{ currentStep + 1 }}/{{ steps.length }}</span>
+                <span class="step-name">{{ currentStepInfo?.name }}</span>
+            </div>
+        </div>
         
-        <div id="imagesContainer" class="images-container"></div>
-    </div>
-    
-    <div class="input-group">
-        <div class="input-wrapper">
-            <button class="new-prompt-btn" onclick="startNewPrompt()" title="Nuevo Prompt">+</button>
-            <input 
-                type="text" 
-                id="promptInput" 
-                placeholder="Type to generate"
-                autocomplete="off"
+        <div class="inner-container">
+            <div class="images-container">
+                <div 
+                    v-for="message in chatMessages" 
+                    :key="message.id" 
+                    class="chat-message"
+                >
+                    <!-- Mensaje del usuario -->
+                    <div class="user-message">
+                        <div class="user-message-text">{{ message.userMessage }}</div>
+                    </div>
+                    
+                    <!-- Respuesta -->
+                    <div class="response-message">
+                        <!-- Indicador de carga -->
+                        <div v-if="message.response.loading" class="typing-indicator">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        
+                        <!-- Error -->
+                        <div v-if="message.response.error" class="error">
+                            {{ message.response.error }}
+                        </div>
+                        
+                        <!-- Imágenes generadas -->
+                        <div 
+                            v-for="(image, index) in message.response.images" 
+                            :key="index"
+                            class="image-wrapper"
+                        >
+                            <img 
+                                :src="getImageUrl(image)" 
+                                :alt="`Generated image ${index + 1}`"
+                                loading="lazy"
+                            />
+                            <div class="download-overlay">
+                                <button 
+                                    class="view-full-btn"
+                                    @click="showFullSize(image)"
+                                    title="View Full Size"
+                                >🔍</button>
+                                <a 
+                                    :href="getImageUrl(image) + '&download=1'"
+                                    class="download-btn"
+                                    :download="image.filename"
+                                    @click.stop
+                                    title="Download"
+                                >⬇️</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endraw %}
+        
+        <div class="input-group">
+            {% raw %}
+            <!-- Contenedor unificado para ambos modos -->
+            <div class="prompt-textfield-container">
+                <!-- Botón Nuevo Prompt (dentro del textfield, izquierda) -->
+                <button 
+                    class="prompt-control-btn new-prompt-inline"
+                    @click="startNewPrompt()"
+                    :disabled="isGenerating || isImproving"
+                    title="New Prompt"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+                
+                <!-- Botón Generar (dentro del textfield, derecha) -->
+                <button 
+                    @click="handleInput" 
+                    class="generate-btn-inline"
+                    :disabled="isGenerating || isImproving || (promptMode === 'interactive' && isFlowComplete)"
+                    title="Generate"
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" fill="#d0d0d0"/>
+                        <path d="M12 8v8M8 12l4-4 4 4" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                
+                <!-- Modo Interactivo: Textarea -->
+                <textarea 
+                    v-if="promptMode === 'interactive'"
+                    v-model="currentInput"
+                    @keydown.enter.exact.prevent="handleInput"
+                    :placeholder="isImproving ? 'Improving with AI...' : currentPlaceholder"
+                    :disabled="isGenerating || isImproving || isFlowComplete"
+                    class="prompt-textarea-field"
+                    ref="promptInput"
+                ></textarea>
+                
+                <!-- Modo Directo: Textarea -->
+                <textarea 
+                    v-if="promptMode === 'direct'"
+                    v-model="directPrompt"
+                    @keydown.enter.exact.prevent="handleInput"
+                    placeholder="Describe what you want to generate..."
+                    class="prompt-textarea-field"
+                    :disabled="isGenerating || isImproving"
+                    ref="directPromptInput"
+                ></textarea>
+                
+                <!-- Controles embebidos -->
+                <div class="prompt-controls">
+                    <div class="prompt-controls-left">
+                        <!-- Prompt Mode Toggle -->
+                        <button 
+                            class="prompt-control-btn"
+                            :class="{ 'active': promptMode === 'interactive' }"
+                            @click="togglePromptMode()"
+                            :disabled="isGenerating || isImproving"
+                            title="Mode: {{ promptMode === 'interactive' ? 'Interactive' : 'Direct' }}"
+                        >
+                            <svg v-if="promptMode === 'interactive'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                        </button>
+                        
+                        <!-- Enrichment Toggle -->
+                        <button 
+                            class="prompt-control-btn"
+                            :class="{ 'active': improveWithAI }"
+                            @click="improveWithAI = !improveWithAI"
+                            :disabled="isGenerating || isImproving"
+                            title="Enrichment: {{ improveWithAI ? 'Enabled' : 'Disabled' }}"
+                        >
+                            <svg v-if="isImproving" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                            </svg>
+                            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 4V2"></path>
+                                <path d="M15 16v-2"></path>
+                                <path d="M8 9h2"></path>
+                                <path d="M20 9h2"></path>
+                                <path d="M17.8 11.8 19 13"></path>
+                                <path d="M15 9h0"></path>
+                                <path d="M17.8 6.2 19 5"></path>
+                                <path d="m3 21 9-9"></path>
+                                <path d="m12.2 6.2 1.4 1.4"></path>
+                            </svg>
+                        </button>
+                        
+                        <!-- Aspect Ratio Select -->
+                        <div class="aspect-ratio-select-wrapper">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            </svg>
+                            <select 
+                                v-model="selectedResolution" 
+                                class="aspect-ratio-select"
+                                :disabled="isGenerating || isImproving"
+                                title="Aspect Ratio"
+                            >
+                                <option value="1024x1024">Square</option>
+                                <option value="823x1216">Portrait</option>
+                                <option value="1216x823">Landscape</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endraw %}
+        </div>
+        
+        {% raw %}
+        <!-- Modal para vista a tamaño completo -->
+        <div 
+            v-if="modalImage" 
+            class="modal" 
+            @click="closeModal"
+        >
+            <span class="modal-close" @click="closeModal">&times;</span>
+            <img 
+                class="modal-content" 
+                :src="modalImageUrl"
+                @click.stop
             />
- 
-            <select id="resolutionSelect" class="resolution-select">
-                <option value="1024x1024">1:1</option>
-                <option value="768x1532">1:2</option>
-                <option value="968x1322">2:3</option>
-            </select>
- 
-            <button id="generateBtn" onclick="generateImages()" class="generate-icon-btn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="12" cy="12" r="10" fill="#d0d0d0"/>
-                    <path d="M12 8v8M8 12l4-4 4 4" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </button>
         </div>
     </div>
-    
-    <div id="loading" class="loading hidden">
-        <div class="spinner"></div>
-        <p>Generando imágenes... Esto puede tomar unos momentos.</p>
-    </div>
-    
-    <div id="error" class="error hidden"></div>
-    
-    <!-- Modal para vista a tamaño completo -->
-    <div id="imageModal" class="modal" onclick="closeModal()">
-        <span class="modal-close">&times;</span>
-        <img class="modal-content" id="modalImage" onclick="event.stopPropagation()">
-    </div>
+        {% endraw %}
     
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>

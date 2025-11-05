@@ -69,6 +69,43 @@ else
     echo "✓ NetaYume Lumina model already exists"
 fi
 
+# Download LoRA detailer if not exists
+LORA_DETAILER_ID=${LORA_DETAILER_ID:-"1974130"}
+LORA_DETAILER_FILE="reakaaka_enhancement_bundle_NetaYumev35_v0.37.2.safetensors"
+LORAS_DIR="/app/ComfyUI/models/loras"
+LORA_DETAILER_PATH="${LORAS_DIR}/${LORA_DETAILER_FILE}"
+
+# Check if LoRA already exists (exact filename or similar)
+LORA_EXISTS=false
+if [ -f "$LORA_DETAILER_PATH" ]; then
+    LORA_EXISTS=true
+elif ls "${LORAS_DIR}"/reakaaka*.safetensors 1> /dev/null 2>&1; then
+    LORA_EXISTS=true
+    echo "Found LoRA detailer with similar name"
+fi
+
+if [ "$LORA_EXISTS" = false ]; then
+    echo "LoRA detailer not found. Downloading from CivitAI..."
+    echo "LoRA ID: ${LORA_DETAILER_ID}"
+    echo "Note: You can set LORA_DETAILER_ID environment variable to use a different LoRA ID"
+    cd /app
+    python civitai_downloader.py ${LORA_DETAILER_ID} "" ""
+    
+    # Check if download was successful (check for exact filename or similar)
+    if [ -f "$LORA_DETAILER_PATH" ]; then
+        echo "✓ LoRA detailer downloaded successfully"
+    elif ls "${LORAS_DIR}"/reakaaka*.safetensors 1> /dev/null 2>&1; then
+        echo "✓ LoRA detailer downloaded successfully (different filename)"
+    else
+        echo "Warning: LoRA detailer download may have failed."
+        echo "Expected file: $LORA_DETAILER_PATH"
+        echo "You can download it manually using the CivitAI downloader at port ${CIVITAI_PORT}"
+        echo "Or set the correct LoRA ID using: LORA_DETAILER_ID=<lora_id>"
+    fi
+else
+    echo "✓ LoRA detailer already exists"
+fi
+
 # Start CivitAI downloader web interface in background
 echo "Starting CivitAI Model Downloader on ${CIVITAI_HOST}:${CIVITAI_PORT}..."
 cd /app
