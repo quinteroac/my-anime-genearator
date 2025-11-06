@@ -12,12 +12,79 @@ import time
 import threading
 import websocket
 import requests
-from flask import Flask, render_template, request, jsonify, send_from_directory
+import random
+import csv
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)  # Permitir CORS para que el frontend pueda hacer requests
 app.config['SECRET_KEY'] = os.urandom(24)
+
+# Cache de tags en memoria
+TAGS_CACHE = {}
+TAGS_CACHE_LOADED = False
+
+def load_tags_cache():
+    """Cargar todos los tags en memoria organizados por categoría"""
+    global TAGS_CACHE, TAGS_CACHE_LOADED
+    
+    if TAGS_CACHE_LOADED:
+        return
+    
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(script_dir, 'data', 'tags.csv')
+    
+    if not os.path.exists(csv_path):
+        print(f"Warning: Tags file not found at {csv_path}")
+        TAGS_CACHE_LOADED = True
+        return
+    
+    print("Loading tags into memory...")
+    start_time = time.time()
+    
+    # Diccionario temporal para acumular tags por categoría
+    tags_by_category = {}
+    
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            category = row['category']
+            tag_name = row['name']
+            post_count = int(row['post_count'])
+            
+            if category not in tags_by_category:
+                tags_by_category[category] = []
+            
+            tags_by_category[category].append({
+                'name': tag_name,
+                'post_count': post_count
+            })
+    
+    # Ordenar cada categoría por post_count (más populares primero)
+    for category in tags_by_category:
+        tags_by_category[category].sort(key=lambda x: x['post_count'], reverse=True)
+    
+    TAGS_CACHE = tags_by_category
+    TAGS_CACHE_LOADED = True
+    
+    elapsed = time.time() - start_time
+    total_tags = sum(len(tags) for tags in TAGS_CACHE.values())
+    print(f"Loaded {total_tags} tags in {elapsed:.2f} seconds ({len(TAGS_CACHE)} categories)")
+
+# Agregar headers de no-caché para archivos estáticos
+@app.after_request
+def add_no_cache_headers(response):
+    """Agregar headers de no-caché para HTML, JS y CSS"""
+    if response.content_type and (
+        'text/html' in response.content_type or
+        'application/javascript' in response.content_type or
+        'text/css' in response.content_type
+    ):
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
 
 # Configuración de ComfyUI
 # Permite especificar URL completa o construirla desde host y port
@@ -43,90 +110,38 @@ WS_PROTOCOL = "wss" if COMFYUI_URL.startswith("https") else "ws"
 # Almacenar estados de generación
 generation_status = {}
 
-# Workflow base de ComfyUI
-BASE_WORKFLOW = {
-    "3": {
-        "inputs": {
-            "seed": 131738907956704,
-            "steps": 50,
-            "cfg": 5,
-            "sampler_name": "res_multistep",
-            "scheduler": "linear_quadratic",
-            "denoise": 1,
-            "model": ["14", 0],
-            "positive": ["6", 0],
-            "negative": ["7", 0],
-            "latent_image": ["13", 0]
-        },
-        "class_type": "KSampler",
-        "_meta": {"title": "KSampler"}
-    },
-    "4": {
-        "inputs": {"ckpt_name": "netayumeLuminaNetaLumina_v35Pretrained.safetensors"},
-        "class_type": "CheckpointLoaderSimple",
-        "_meta": {"title": "Cargar Punto de Control"}
-    },
-    "6": {
-        "inputs": {
-            "text": "You are an assistant designed to generate high quality anime images based on textual prompts. <Prompt Start> Anime illustration of a girl with long black hair wearing a dark sailor uniform with a large red ribbon, holding a vintage rangefinder camera up to her right eye. She stands in a field of tall golden grass dotted with red and white flowers and purple lavender spikes. The background is a vivid sunset sky with orange, yellow, and blue clouds, backlit by intense sunlight creating strong lens flare and rim light on her hair and body. Several small glowing light particles drift across the scene.",
-            "clip": ["14", 1]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {"title": "CLIP Text Encode (Positive Prompt)"}
-    },
-    "7": {
-        "inputs": {
-            "text": "You are an assistant designed to generate low-quality images based on textual prompts <Prompt Start> blurry, worst quality, low quality, jpeg artifacts, signature, watermark, username, error, deformed hands, bad anatomy, extra limbs, poorly drawn hands, poorly drawn face, mutation, deformed, extra eyes, extra arms, extra legs, malformed limbs, fused fingers, too many fingers, long neck, cross-eyed, bad proportions, missing arms, missing legs, extra digit, fewer digits, cropped",
-            "clip": ["4", 1]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {"title": "CLIP Text Encode (Negative Prompt)"}
-    },
-    "8": {
-        "inputs": {
-            "samples": ["3", 0],
-            "vae": ["4", 2]
-        },
-        "class_type": "VAEDecode",
-        "_meta": {"title": "Decodificación VAE"}
-    },
-    "9": {
-        "inputs": {
-            "filename_prefix": "NetaYume_Lumina_3.5",
-            "images": ["8", 0]
-        },
-        "class_type": "SaveImage",
-        "_meta": {"title": "Guardar Imagen"}
-    },
-    "11": {
-        "inputs": {
-            "shift": 4,
-            "model": ["4", 0]
-        },
-        "class_type": "ModelSamplingAuraFlow",
-        "_meta": {"title": "ModelSamplingAuraFlow"}
-    },
-    "13": {
-        "inputs": {
-            "width": 816,
-            "height": 1216,
-            "batch_size": 1
-        },
-        "class_type": "EmptySD3LatentImage",
-        "_meta": {"title": "EmptySD3LatentImage"}
-    },
-    "14": {
-        "inputs": {
-            "lora_name": "reakaaka_enhancement_bundle_NetaYumev35_v0.37.2.safetensors",
-            "strength_model": 1,
-            "strength_clip": 1,
-            "model": ["11", 0],
-            "clip": ["4", 1]
-        },
-        "class_type": "LoraLoader",
-        "_meta": {"title": "Cargar LoRA"}
-    }
-}
+# Cargar workflow de Lumina desde archivo JSON
+def load_workflow(workflow_path):
+    """Cargar workflow desde archivo JSON"""
+    try:
+        # Intentar rutas relativas y absolutas
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        possible_paths = [
+            workflow_path,  # Ruta absoluta o relativa al directorio actual
+            os.path.join(script_dir, workflow_path),  # Relativa al script
+            os.path.join(script_dir, 'workflows', 'text-to-image', 'text-to-image-lumina.json')  # Ruta por defecto
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    workflow = json.load(f)
+                    print(f"✓ Workflow cargado desde: {path}")
+                    return workflow
+        
+        raise FileNotFoundError(f"Workflow no encontrado en ninguna de las rutas: {possible_paths}")
+    except Exception as e:
+        print(f"Error cargando workflow: {e}")
+        raise
+
+# Cargar workflow base de Lumina
+WORKFLOW_PATH = os.environ.get('LUMINA_WORKFLOW_PATH', 'workflows/text-to-image/text-to-image-lumina.json')
+try:
+    BASE_WORKFLOW = load_workflow(WORKFLOW_PATH)
+except Exception as e:
+    print(f"Error fatal: No se pudo cargar el workflow de Lumina: {e}")
+    print("Asegúrate de que el archivo workflows/text-to-image/text-to-image-lumina.json existe")
+    sys.exit(1)
 
 def queue_prompt(workflow, client_id=str(uuid.uuid4())):
     """Enviar prompt a la cola de ComfyUI"""
@@ -394,7 +409,11 @@ def wait_for_completion(client_id, prompt_id, max_wait=300):
     
     return images
 
-def generate_images(positive_prompt, negative_prompt=None, width=1024, height=1024):
+def generate_random_seed():
+    """Generar una semilla aleatoria para la generación de imágenes"""
+    return random.randint(0, 2**32 - 1)
+
+def generate_images(positive_prompt, negative_prompt=None, width=1024, height=1024, steps=50, seed=None):
     """Generar imágenes usando ComfyUI"""
     client_id = str(uuid.uuid4())
     
@@ -421,8 +440,14 @@ def generate_images(positive_prompt, negative_prompt=None, width=1024, height=10
     workflow["13"]["inputs"]["width"] = width
     workflow["13"]["inputs"]["height"] = height
     
-    # Generar seed aleatorio
-    workflow["3"]["inputs"]["seed"] = int(time.time() * 1000) % (2**32)
+    # Actualizar número de steps
+    workflow["3"]["inputs"]["steps"] = steps
+    
+    # Usar seed proporcionado o generar uno nuevo
+    if seed is not None:
+        workflow["3"]["inputs"]["seed"] = int(seed)
+    else:
+        workflow["3"]["inputs"]["seed"] = generate_random_seed()
     
     try:
         # Enviar a la cola
@@ -448,8 +473,13 @@ def generate_images(positive_prompt, negative_prompt=None, width=1024, height=10
 
 @app.route('/')
 def index():
-    """Página principal"""
-    return render_template('index.html')
+    """Página principal con headers de no-caché"""
+    response = Response(render_template('index.html'))
+    # Agregar headers para evitar caché del navegador
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/api/generate', methods=['POST'])
 def api_generate():
@@ -459,6 +489,8 @@ def api_generate():
         prompt = data.get('prompt', '').strip()
         width = data.get('width', 1024)
         height = data.get('height', 1024)
+        steps = data.get('steps', 50)  # Por defecto 50 steps
+        seed = data.get('seed', None)  # Seed opcional
         
         if not prompt:
             return jsonify({"success": False, "error": "Empty prompt"}), 400
@@ -469,8 +501,22 @@ def api_generate():
         if width <= 0 or height <= 0:
             return jsonify({"success": False, "error": "Invalid dimensions"}), 400
         
+        # Validar steps
+        steps = int(steps)
+        if steps <= 0:
+            return jsonify({"success": False, "error": "Invalid steps"}), 400
+        
+        # Validar seed si se proporciona
+        if seed is not None:
+            try:
+                seed = int(seed)
+                if seed < 0 or seed >= 2**32:
+                    return jsonify({"success": False, "error": "Invalid seed (must be 0-4294967295)"}), 400
+            except (ValueError, TypeError):
+                return jsonify({"success": False, "error": "Invalid seed format"}), 400
+        
         # Generar imágenes
-        result = generate_images(prompt, width=width, height=height)
+        result = generate_images(prompt, width=width, height=height, steps=steps, seed=seed)
         
         return jsonify(result)
     except Exception as e:
@@ -478,56 +524,34 @@ def api_generate():
 
 @app.route('/api/image/<filename>')
 def serve_image(filename):
-    """Servir imágenes generadas"""
+    """Servir imágenes generadas - siempre desde ComfyUI /view endpoint"""
     try:
         subfolder = request.args.get('subfolder', '')
         image_type = request.args.get('type', 'output')
         download = request.args.get('download', '0') == '1'
         
-        # Construir rutas posibles
-        base_dir = f"/app/ComfyUI/{image_type}"
-        
-        # Intentar diferentes rutas
-        possible_paths = []
-        if subfolder:
-            possible_paths.append(os.path.join(base_dir, subfolder, filename))
-        possible_paths.append(os.path.join(base_dir, filename))
-        
-        # Buscar el archivo
-        file_path = None
-        directory = None
-        for path in possible_paths:
-            if os.path.exists(path):
-                file_path = path
-                directory = os.path.dirname(path)
-                break
-        
-        if not file_path or not directory:
-            # Si no encontramos el archivo, intentar obtenerlo directamente de ComfyUI
-            # usando el endpoint /view de ComfyUI
-            try:
-                params = {"filename": filename, "type": image_type}
-                if subfolder:
-                    params["subfolder"] = subfolder
-                
-                response = requests.get(f"{COMFYUI_URL}/view", params=params, stream=True)
-                if response.status_code == 200:
-                    from flask import Response
-                    return Response(
-                        response.iter_content(chunk_size=8192),
-                        content_type=response.headers.get('Content-Type', 'image/png'),
-                        headers={'Content-Disposition': f'{"attachment" if download else "inline"}; filename="{filename}"'} if download else {}
-                    )
-            except Exception as e:
-                print(f"Error getting image from ComfyUI: {e}")
+        # Siempre obtener la imagen desde el endpoint /view de ComfyUI
+        try:
+            params = {"filename": filename, "type": image_type}
+            if subfolder:
+                params["subfolder"] = subfolder
             
-            return jsonify({"error": f"Image not found: {filename}"}), 404
-        
-        return send_from_directory(
-            directory,
-            os.path.basename(filename),
-            as_attachment=(download == 1)
-        )
+            response = requests.get(f"{COMFYUI_URL}/view", params=params, stream=True, timeout=30)
+            if response.status_code == 200:
+                from flask import Response
+                return Response(
+                    response.iter_content(chunk_size=8192),
+                    content_type=response.headers.get('Content-Type', 'image/png'),
+                    headers={'Content-Disposition': f'{"attachment" if download else "inline"}; filename="{filename}"'} if download else {}
+                )
+            else:
+                print(f"Error getting image from ComfyUI: HTTP {response.status_code} for {filename}")
+                return jsonify({"error": f"Image not found: {filename} (HTTP {response.status_code})"}), 404
+        except Exception as e:
+            print(f"Error getting image from ComfyUI: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"Error fetching image from ComfyUI: {str(e)}"}), 500
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -695,7 +719,56 @@ def improve_prompt():
             "error": f"Error improving prompt: {str(e)}"
         }), 500
 
+@app.route('/api/tags/<category>')
+def get_tags(category):
+    """Obtener tags filtrados por categoría"""
+    try:
+        # Cargar cache si no está cargado
+        load_tags_cache()
+        
+        # Las categorías en el CSV coinciden directamente con los nombres de los pasos
+        if category == 'Natural-language enrichment':
+            return jsonify({"success": True, "tags": []})
+        
+        csv_category = category
+        
+        if not csv_category:
+            return jsonify({"success": True, "tags": []})
+        
+        # Obtener tags ya mostrados de los parámetros de la petición
+        excluded_tags = request.args.get('excluded', '').split(',')
+        excluded_tags = [tag.strip() for tag in excluded_tags if tag.strip()]
+        excluded_set = set(excluded_tags)  # Usar set para búsqueda O(1)
+        
+        # Obtener tags de la categoría desde el cache
+        if csv_category not in TAGS_CACHE:
+            return jsonify({"success": True, "tags": []})
+        
+        # Filtrar tags excluidos (ya están ordenados por post_count)
+        tags = [
+            tag for tag in TAGS_CACHE[csv_category]
+            if tag['name'] not in excluded_set
+        ]
+        
+        # Limitar a 40 tags (ya están ordenados por post_count)
+        tags = tags[:40]
+        
+        return jsonify({
+            "success": True,
+            "tags": [tag['name'] for tag in tags]
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 if __name__ == '__main__':
+    # Cargar tags al iniciar la aplicación
+    load_tags_cache()
+    
     port = int(os.environ.get('ANIME_GENERATOR_PORT', 5000))
     host = os.environ.get('ANIME_GENERATOR_HOST', '0.0.0.0')
     print(f"Iniciando Generador de Anime en {host}:{port}")

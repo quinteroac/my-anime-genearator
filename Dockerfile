@@ -72,6 +72,8 @@ RUN chmod +x /app/civitai_downloader.py /app/civitai_web.py
 COPY anime_generator.py /app/anime_generator.py
 COPY templates /app/templates
 COPY static /app/static
+COPY data /app/data
+COPY workflows /app/workflows
 RUN chmod +x /app/anime_generator.py
 
 # Copy entrypoint script

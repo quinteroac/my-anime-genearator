@@ -52,7 +52,9 @@ if [ "$MODEL_EXISTS" = false ]; then
     echo "Model ID: ${NETAYUME_MODEL_ID}"
     echo "Note: You can set NETAYUME_MODEL_ID environment variable to use a different model ID"
     cd /app
-    python civitai_downloader.py ${NETAYUME_MODEL_ID} "" ""
+    # Pass CIVITAI_API_KEY if set, otherwise pass empty string
+    CIVITAI_API_KEY_ARG="${CIVITAI_API_KEY:-}"
+    python civitai_downloader.py ${NETAYUME_MODEL_ID} "" "${CIVITAI_API_KEY_ARG}"
     
     # Check if download was successful (check for exact filename or similar)
     if [ -f "$NETAYUME_MODEL_PATH" ]; then
@@ -89,7 +91,9 @@ if [ "$LORA_EXISTS" = false ]; then
     echo "LoRA ID: ${LORA_DETAILER_ID}"
     echo "Note: You can set LORA_DETAILER_ID environment variable to use a different LoRA ID"
     cd /app
-    python civitai_downloader.py ${LORA_DETAILER_ID} "" ""
+    # Pass CIVITAI_API_KEY if set, otherwise pass empty string
+    CIVITAI_API_KEY_ARG="${CIVITAI_API_KEY:-}"
+    python civitai_downloader.py ${LORA_DETAILER_ID} "" "${CIVITAI_API_KEY_ARG}"
     
     # Check if download was successful (check for exact filename or similar)
     if [ -f "$LORA_DETAILER_PATH" ]; then

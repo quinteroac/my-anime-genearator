@@ -29,7 +29,14 @@ createApp({
             isImproving: false,
             flowCompleted: false,
             promptMode: 'direct', // 'interactive' o 'direct'
-            directPrompt: '' // Prompt para modo directo
+            directPrompt: '', // Prompt para modo directo
+            currentSeed: null, // Seed para modo interactivo (se genera al inicio y se mantiene)
+            availableTags: [], // Tags disponibles para la categoría actual
+            selectedTags: new Set(), // Tags seleccionados (para ocultarlos)
+            displayedTags: [], // Tags mostrados actualmente (máximo 5)
+            tagsIndex: 0, // Índice para saber cuántos tags hemos mostrado
+            allDisplayedTags: new Set(), // Todos los tags que ya se han mostrado (incluyendo los anteriores)
+            tagsVisible: true // Control de visibilidad de los tags
         };
     },
     computed: {
@@ -82,17 +89,26 @@ createApp({
         modalImageUrl() {
             if (!this.modalImage) return '';
             return `/api/image/${this.modalImage.filename}?subfolder=${this.modalImage.subfolder || ''}&type=${this.modalImage.type || 'output'}`;
-        }
+        },
     },
     mounted() {
         // Iniciar en el primer paso
         this.currentStep = 0;
+        // Generar seed inicial para modo interactivo
+        if (this.promptMode === 'interactive') {
+            this.currentSeed = this.generateRandomSeed();
+            // Cargar tags para el paso actual
+            if (this.currentStepInfo) {
+                this.loadTagsForStep(this.currentStepInfo.name);
+            }
+        }
         this.$nextTick(() => {
             if (this.promptMode === 'interactive' && this.$refs.promptInput) {
                 this.$refs.promptInput.focus();
             } else if (this.promptMode === 'direct' && this.$refs.directPromptInput) {
                 this.$refs.directPromptInput.focus();
             }
+            
         });
         
         // Cerrar modal con Escape
@@ -111,6 +127,31 @@ createApp({
                 });
             },
             deep: true
+        },
+        promptMode(newMode) {
+            if (newMode === 'interactive') {
+                if (this.currentStepInfo) {
+                    this.loadTagsForStep(this.currentStepInfo.name);
+                }
+            } else {
+                this.availableTags = [];
+                this.selectedTags.clear();
+                this.displayedTags = [];
+                this.tagsIndex = 0;
+            }
+        },
+        improveWithAI() {
+            // No hay nada que hacer aquí para iconos SVG
+        },
+        currentStep(newStep) {
+            // Cargar tags cuando cambia el paso
+            if (this.promptMode === 'interactive' && this.currentStepInfo) {
+                this.loadTagsForStep(this.currentStepInfo.name);
+                // Resetear tags seleccionados al cambiar de paso
+                this.selectedTags.clear();
+                this.displayedTags = [];
+                this.tagsIndex = 0;
+            }
         }
     },
     methods: {
@@ -220,8 +261,8 @@ createApp({
                     this.currentPrompt = promptToAdd.trim();
                 }
                 
-                // Generar imagen con el prompt concatenado
-                await this.generateImages();
+                // Generar imagen con el prompt concatenado (modo directo siempre usa 50 steps)
+                await this.generateImages(50);
                 
                 // Limpiar solo el textarea (no el currentPrompt) y restaurar el focus para continuar el chat
                 this.directPrompt = '';
@@ -340,11 +381,24 @@ createApp({
                     // Si no hay input válido, simplemente continuar sin agregar nada al prompt
                 }
                 
-                // Generar imagen inmediatamente solo si hay un prompt válido
-                // Si no hay prompt, simplemente avanzar al siguiente paso
-                if (this.currentPrompt && this.currentPrompt.trim().replace(/,/g, '').trim().length > 0) {
-                    await this.generateImages();
+                // Generar imagen solo en el último paso
+                // En pasos intermedios, si el input está vacío, no generar imagen
+                // isLastStep ya está declarado arriba, no redeclarar
+                const hasValidPrompt = this.currentPrompt && this.currentPrompt.trim().replace(/,/g, '').trim().length > 0;
+                const hasInput = finalInput && finalInput.trim().replace(/,/g, '').trim().length > 0;
+                
+                // Solo generar imagen si:
+                // 1. Es el último paso (siempre generar, incluso si está vacío) - 50 steps
+                // 2. O si hay un prompt válido Y hay input en pasos intermedios (25 steps)
+                if (isLastStep) {
+                    // En el último paso, generar siempre (50 steps), incluso si el prompt está vacío
+                    await this.generateImages(50, null, true);
+                } else if (hasValidPrompt && hasInput) {
+                    // En pasos intermedios, solo generar si hay input válido (25 steps)
+                    // Si no hay input, no generar imagen, solo avanzar al siguiente paso
+                    await this.generateImages(25);
                 }
+                // Si no es el último paso y no hay input, no generar imagen, solo avanzar
                 
                 // Avanzar al siguiente paso solo si no es el último
                 if (this.currentStep < this.steps.length - 1) {
@@ -366,14 +420,42 @@ createApp({
             }
         },
         
-        async generateImages() {
-            if (!this.currentPrompt || this.isGenerating) {
+        generateRandomSeed() {
+            // Generar una semilla aleatoria entre 0 y 2^32 - 1
+            return Math.floor(Math.random() * 4294967296);
+        },
+        
+        async generateImages(steps = 50, seed = null, allowEmptyPrompt = false) {
+            // Verificar si hay prompt o si está permitido generar con prompt vacío
+            const hasPrompt = this.currentPrompt && this.currentPrompt.trim().replace(/,/g, '').trim().length > 0;
+            if (!hasPrompt && !allowEmptyPrompt) {
                 return;
+            }
+            if (this.isGenerating) {
+                return;
+            }
+            
+            // Determinar qué seed usar
+            let seedToUse = seed;
+            if (seedToUse === null) {
+                if (this.promptMode === 'interactive') {
+                    // En modo interactivo, usar la seed actual o generar una nueva si no existe
+                    if (this.currentSeed === null) {
+                        this.currentSeed = this.generateRandomSeed();
+                    }
+                    seedToUse = this.currentSeed;
+                } else {
+                    // En modo directo, siempre generar una nueva seed
+                    seedToUse = this.generateRandomSeed();
+                }
             }
             
             // Crear nuevo mensaje de chat con el prompt completo
             const messageId = ++this.messageIdCounter;
-            const promptToUse = this.currentPrompt;
+            // Usar prompt actual o un prompt por defecto si está vacío y está permitido
+            const promptToUse = (this.currentPrompt && this.currentPrompt.trim().replace(/,/g, '').trim().length > 0) 
+                ? this.currentPrompt 
+                : (allowEmptyPrompt ? 'anime' : '');
             const newMessage = {
                 id: messageId,
                 userMessage: promptToUse,
@@ -400,7 +482,9 @@ createApp({
                     body: JSON.stringify({
                         prompt: promptToUse,
                         width: width,
-                        height: height
+                        height: height,
+                        steps: steps,
+                        seed: seedToUse
                     })
                 });
                 
@@ -461,6 +545,18 @@ createApp({
             this.currentPrompt = ''; // Resetear el prompt completo para empezar desde cero
             this.flowCompleted = false; // Resetear el flag de flujo completado
             this.directPrompt = ''; // Resetear el prompt directo
+            // En modo interactivo, generar una nueva seed al iniciar un nuevo prompt
+            if (this.promptMode === 'interactive') {
+                this.currentSeed = this.generateRandomSeed();
+                // Cargar tags para el paso actual
+                if (this.currentStepInfo) {
+                    this.loadTagsForStep(this.currentStepInfo.name);
+                }
+                // Resetear tags seleccionados
+                this.selectedTags.clear();
+            } else {
+                this.currentSeed = null; // En modo directo no mantenemos seed
+            }
             this.$nextTick(() => {
                 if (this.promptMode === 'interactive' && this.$refs.promptInput) {
                     this.$refs.promptInput.focus();
@@ -472,6 +568,12 @@ createApp({
         
         togglePromptMode() {
             this.promptMode = this.promptMode === 'interactive' ? 'direct' : 'interactive';
+            // Si cambiamos a modo interactivo, generar una nueva seed
+            if (this.promptMode === 'interactive') {
+                this.currentSeed = this.generateRandomSeed();
+            } else {
+                this.currentSeed = null; // En modo directo no mantenemos seed
+            }
             this.$nextTick(() => {
                 if (this.promptMode === 'interactive' && this.$refs.promptInput) {
                     this.$refs.promptInput.focus();
@@ -492,6 +594,171 @@ createApp({
         closeModal() {
             this.modalImage = null;
         },
+        
+        async loadTagsForStep(categoryName) {
+            try {
+                // URL encode para manejar caracteres especiales como &
+                const encodedCategory = encodeURIComponent(categoryName);
+                
+                // Resetear todos los tags mostrados al cambiar de paso
+                this.allDisplayedTags.clear();
+                this.tagsVisible = true; // Mostrar tags al cambiar de paso
+                
+                const response = await fetch(`/api/tags/${encodedCategory}`);
+                const data = await response.json();
+                
+                if (data.success && data.tags) {
+                    this.availableTags = data.tags;
+                    console.log('Tags cargados:', data.tags.length);
+                    // Resetear tags seleccionados y mostrados al cargar nuevos tags
+                    this.selectedTags.clear();
+                    this.displayedTags = [];
+                    this.tagsIndex = 0;
+                    this.updateDisplayedTags();
+                } else {
+                    this.availableTags = [];
+                    this.displayedTags = [];
+                    this.tagsIndex = 0;
+                }
+            } catch (error) {
+                console.error('Error loading tags:', error);
+                this.availableTags = [];
+                this.displayedTags = [];
+                this.tagsIndex = 0;
+            }
+        },
+        
+        updateDisplayedTags() {
+            // Obtener tags disponibles (no seleccionados)
+            const visibleTags = this.availableTags.filter(tag => !this.selectedTags.has(tag));
+            
+            // Llenar displayedTags hasta 5 tags
+            while (this.displayedTags.length < 5 && this.tagsIndex < visibleTags.length) {
+                const tag = visibleTags[this.tagsIndex];
+                this.displayedTags.push(tag);
+                // Agregar a la lista de tags ya mostrados
+                this.allDisplayedTags.add(tag);
+                this.tagsIndex++;
+            }
+        },
+        
+        async loadMoreTags() {
+            // Agregar los tags actuales a la lista de tags ya mostrados
+            this.displayedTags.forEach(tag => {
+                this.allDisplayedTags.add(tag);
+            });
+            
+            // Remover todos los tags actuales de displayedTags
+            const currentDisplayed = [...this.displayedTags];
+            this.displayedTags = [];
+            
+            try {
+                // Obtener la categoría actual
+                const categoryName = this.currentStepInfo?.name;
+                if (!categoryName || categoryName === 'Natural-language enrichment') {
+                    return;
+                }
+                
+                // Construir lista de tags excluidos (todos los que ya se han mostrado)
+                const excludedTags = Array.from(this.allDisplayedTags).join(',');
+                const encodedCategory = encodeURIComponent(categoryName);
+                const encodedExcluded = encodeURIComponent(excludedTags);
+                
+                // Solicitar nuevos tags excluyendo los ya mostrados
+                const response = await fetch(`/api/tags/${encodedCategory}?excluded=${encodedExcluded}`);
+                const data = await response.json();
+                
+                if (data.success && data.tags && data.tags.length > 0) {
+                    // Tomar hasta 5 tags nuevos
+                    const newTags = data.tags.slice(0, 5);
+                    this.displayedTags = newTags;
+                    
+                    // Agregar los nuevos tags a la lista de mostrados
+                    newTags.forEach(tag => {
+                        this.allDisplayedTags.add(tag);
+                    });
+                } else {
+                    // Si no hay más tags disponibles, vaciar displayedTags
+                    this.displayedTags = [];
+                }
+            } catch (error) {
+                console.error('Error loading more tags:', error);
+                // Si hay error, mantener los tags actuales
+                this.displayedTags = currentDisplayed;
+            }
+        },
+        
+        getTagButtonStyle(index) {
+            // Paleta de colores
+            const colorPalette = [
+                { bg: '#7F5A83', text: '#ffffff', border: '#6b4a6f' }, // Morado/Lavanda
+                { bg: '#5a7a65', text: '#ffffff', border: '#4a6a55' }, // Verde más oscuro
+                { bg: '#00798c', text: '#ffffff', border: '#006674' }, // Cyan oscuro
+                { bg: '#30638e', text: '#ffffff', border: '#275275' }  // Azul oscuro
+            ];
+            
+            // Usar índice para seleccionar color de forma cíclica
+            const colorIndex = index % colorPalette.length;
+            const selectedColor = colorPalette[colorIndex];
+            
+            return {
+                backgroundColor: selectedColor.bg,
+                color: selectedColor.text,
+                borderColor: selectedColor.border
+            };
+        },
+        
+        truncateTag(tag) {
+            // Truncar texto si es muy largo (máximo ~12 caracteres para un botón de 100px)
+            const maxLength = 12;
+            if (tag && tag.length > maxLength) {
+                return tag.substring(0, maxLength - 3) + '...';
+            }
+            return tag;
+        },
+        
+        selectTag(tag) {
+            // Agregar tag al textarea
+            if (this.promptMode === 'interactive') {
+                // Si ya hay texto, agregar coma y espacio antes
+                if (this.currentInput.trim()) {
+                    this.currentInput += ', ' + tag;
+                } else {
+                    this.currentInput = tag;
+                }
+                
+                // Marcar como seleccionado para ocultarlo
+                this.selectedTags.add(tag);
+                
+                // Remover el tag seleccionado de displayedTags
+                const tagIndex = this.displayedTags.indexOf(tag);
+                if (tagIndex !== -1) {
+                    this.displayedTags.splice(tagIndex, 1);
+                    
+                    // Reemplazar con un nuevo tag disponible
+                    const visibleTags = this.availableTags.filter(t => 
+                        !this.selectedTags.has(t) && !this.displayedTags.includes(t)
+                    );
+                    
+                    if (visibleTags.length > 0) {
+                        // Seleccionar un tag aleatorio de los disponibles
+                        const randomIndex = Math.floor(Math.random() * visibleTags.length);
+                        this.displayedTags.push(visibleTags[randomIndex]);
+                    }
+                }
+                
+                // Focus en el textarea
+                this.$nextTick(() => {
+                    if (this.$refs.promptInput) {
+                        this.$refs.promptInput.focus();
+                        // Mover cursor al final
+                        const len = this.$refs.promptInput.value.length;
+                        this.$refs.promptInput.setSelectionRange(len, len);
+                    }
+                });
+            }
+        },
+        
         
         async improvePrompt(userPrompt, stepName) {
             try {

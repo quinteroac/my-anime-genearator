@@ -32,12 +32,13 @@ MODELS_DIR = Path("/app/ComfyUI/models")
 
 class CivitAIDownloader:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key
+        # Use provided api_key, or fall back to environment variable
+        self.api_key = api_key or os.environ.get('CIVITAI_API_KEY')
         self.headers = {
             "User-Agent": "ComfyUI-CivitAI-Downloader/1.0"
         }
-        if api_key:
-            self.headers["Authorization"] = f"Bearer {api_key}"
+        if self.api_key:
+            self.headers["Authorization"] = f"Bearer {self.api_key}"
         
         # Ensure model directories exist
         for dir_name in MODEL_DIRS.values():

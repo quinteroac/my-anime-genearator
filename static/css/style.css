@@ -163,6 +163,8 @@ h1 {
     resize: none;
     transition: outline 0.3s;
     height: 160px;
+    min-height: 160px;
+    max-height: 160px;
     padding-top: 20px;
     padding-bottom: 64px;
     padding-left: 50px;
@@ -222,6 +224,12 @@ h1 {
     gap: 4px;
 }
 
+.prompt-controls-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
 /* Botones de control */
 .prompt-control-btn {
     display: flex;
@@ -253,48 +261,43 @@ h1 {
     cursor: not-allowed;
 }
 
-.prompt-control-btn svg {
+.prompt-control-btn svg,
+.prompt-control-btn .icon {
     width: 16px;
     height: 16px;
     stroke: currentColor;
+    fill: none;
 }
 
-/* Aspect Ratio Select Wrapper */
-.aspect-ratio-select-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: #a0a0a0;
-}
-
-.aspect-ratio-select-wrapper svg {
-    width: 16px;
-    height: 16px;
-    stroke: currentColor;
-}
-
+/* Aspect Ratio Select */
 .aspect-ratio-select {
-    background: transparent;
-    border: none;
+    background: #2a2a2a;
+    border: 1px solid #404040;
     border-radius: 6px;
-    padding: 4px 8px;
+    padding: 6px 28px 6px 10px;
     font-size: 13px;
     color: #e0e0e0;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
-    width: 80px;
+    width: 100px;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23a0a0a0' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
 }
 
 .aspect-ratio-select:hover:not(:disabled) {
-    background: #2a2a2a;
+    background-color: #333333;
+    border-color: #505050;
 }
 
 .aspect-ratio-select:focus {
     outline: none;
-    background: #2a2a2a;
+    border-color: #606060;
+    background-color: #333333;
 }
 
 .aspect-ratio-select:disabled {
@@ -347,10 +350,15 @@ h1 {
     cursor: not-allowed;
 }
 
-.generate-btn-inline svg {
+.generate-btn-inline svg,
+.generate-btn-inline .icon {
     width: 20px;
     height: 20px;
+}
+
+.generate-btn-inline svg {
     stroke: #e0e0e0;
+    fill: none;
 }
 
 .generate-btn-inline circle {
@@ -608,6 +616,20 @@ button:disabled {
     min-height: 44px;
 }
 
+.download-btn .icon,
+.view-full-btn .icon {
+    width: 20px;
+    height: 20px;
+}
+
+.download-btn svg,
+.view-full-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+}
+
 .download-btn:hover, .view-full-btn:hover {
     border-color: #e0e0e0;
     color: #ffffff;
@@ -657,6 +679,24 @@ button:disabled {
     cursor: pointer;
     z-index: 1001;
     transition: color 0.3s;
+    background: transparent;
+    border: none;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close .icon {
+    width: 32px;
+    height: 32px;
+}
+
+.modal-close svg {
+    width: 32px;
+    height: 32px;
+    stroke: currentColor;
+    fill: none;
 }
 
 .modal-close:hover {
@@ -695,6 +735,170 @@ button:disabled {
 
 .hidden {
     display: none;
+}
+
+/* Estilos para iconos SVG (Heroicons) */
+.icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.icon svg {
+    width: 100%;
+    height: 100%;
+    stroke: currentColor;
+    fill: none;
+}
+
+/* Tamaños específicos para diferentes contextos */
+.generate-btn-inline .icon {
+    width: 20px;
+    height: 20px;
+}
+
+.generate-btn-inline svg.icon {
+    width: 20px;
+    height: 20px;
+}
+
+.download-btn .icon,
+.view-full-btn .icon {
+    width: 20px;
+    height: 20px;
+}
+
+.modal-close .icon {
+    width: 32px;
+    height: 32px;
+}
+
+/* Animación de rotación para el icono de loading */
+.icon.spinning {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Estilos para tags arriba del textarea */
+.tags-container-above {
+    background: transparent;
+    padding: 10px 20px;
+    margin-bottom: 10px;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.tags-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+}
+
+.tags-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    flex: 1;
+}
+
+.tag-button {
+    padding: 8px 16px;
+    border-radius: 12px;
+    border: 1px solid;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    opacity: 0.9;
+    width: 100px; /* Tamaño fijo */
+    max-width: 100px;
+    min-width: 100px;
+    height: 36px; /* Tamaño fijo */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    text-align: center; /* Centrar texto */
+}
+
+.tag-button:hover {
+    opacity: 1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.tag-button:active {
+    transform: translateY(0);
+    opacity: 0.8;
+}
+
+/* Botones de control de tags */
+.renew-tags-btn-inline,
+.toggle-tags-btn-inline {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #e0e0e0;
+}
+
+.renew-tags-btn-inline:hover:not(:disabled),
+.toggle-tags-btn-inline:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.renew-tags-btn-inline:active:not(:disabled),
+.toggle-tags-btn-inline:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+.renew-tags-btn-inline:disabled,
+.toggle-tags-btn-inline:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.renew-tags-btn-inline svg,
+.renew-tags-btn-inline .icon,
+.toggle-tags-btn-inline svg,
+.toggle-tags-btn-inline .icon {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+}
+
+/* Asegurar que los tags no interfieran con el contenido */
+.inner-container {
+    position: relative;
+    z-index: 1;
+}
+
+.images-container {
+    position: relative;
+    z-index: 1;
 }
 
 

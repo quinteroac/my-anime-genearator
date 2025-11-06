@@ -1,251 +1,261 @@
-# ComfyUI Container for RunPod
+# Anime Generator - RunPod Template
 
-This project contains the necessary files to create a Docker container that runs ComfyUI, compatible with RunPod.
+A powerful web application for iterative anime image generation using ComfyUI. This application provides an intuitive interface for creating anime-style images through an interactive step-by-step process or direct prompt generation.
 
-## Description
+## 🎨 Features
 
-ComfyUI is a powerful and modular user interface for Stable Diffusion. This container is configured to run on RunPod with all necessary dependencies.
+### Interactive Generation Mode
+- **Step-by-step prompt building**: Build your prompt through 10 categorized steps:
+  1. Character
+  2. Art-Style
+  3. Character Appearance
+  4. Clothing
+  5. Expression & Action
+  6. Camera / Positioning
+  7. Lighting & Effects
+  8. Scene Atmosphere
+  9. Quality Tag
+  10. Natural-language enrichment (optional)
 
-## Project Structure
+- **Smart tag suggestions**: Access to 800,000+ curated tags organized by category
+  - Tags are displayed dynamically based on the current step
+  - Tags are sorted by popularity (post_count)
+  - In-memory cache for fast tag retrieval
+  - Prevents duplicate tag suggestions
 
-- `Dockerfile`: Defines the Docker image with ComfyUI and all its dependencies
-- `entrypoint.sh`: Script that starts ComfyUI and the CivitAI downloader
-- `requirements.txt`: Required Python dependencies
-- `civitai_downloader.py`: Core logic for downloading models from CivitAI
-- `civitai_web.py`: Flask web interface for the CivitAI model downloader
-- `RUNPOD_TEMPLATE_README.md`: Documentation for deploying the template on RunPod
-- `.dockerignore`: Files to exclude from Docker build
-- `.github/workflows/`: GitHub Actions workflows for automatic Docker builds
-- `push-to-github.ps1`: PowerShell script to push changes to GitHub (Windows)
-- `push-to-github.sh`: Bash script to push changes to GitHub (Linux/Mac/WSL)
+- **AI-powered prompt enrichment**: Optional OpenAI integration to enhance prompts
+- **Progressive generation**: Generate previews at 25 steps for intermediate steps, final image at 50 steps
+- **Seed management**: Consistent seed across all steps in interactive mode
 
-## Building the Image
+### Direct Generation Mode
+- **Quick generation**: Direct prompt input for immediate image generation
+- **Random seed**: Each generation uses a new random seed
+- **Full quality**: Always generates at 50 steps
 
-To build the Docker image locally:
+### Additional Features
+- **Multiple aspect ratios**: Square (1024x1024), Portrait (823x1216), Landscape (1216x823)
+- **Real-time status updates**: WebSocket integration for live generation progress
+- **Image gallery**: View and manage generated images
+- **Full-size image viewer**: Click to view images in full resolution
+- **Responsive design**: Modern, dark-themed UI with smooth animations
 
-```bash
-docker build -t comfyui-runpod .
-```
+## 🚀 Deployment on RunPod
 
-### Optimizing Build Time (Cache)
+### Quick Start
 
-The Dockerfile has been optimized for fast rebuilds using Docker's layer caching:
+1. **Create a RunPod Pod**
+   - Go to [RunPod.io](https://www.runpod.io)
+   - Select "GPU Pods" → "Deploy"
+   - Choose your preferred GPU (RTX 4090/5090 recommended)
+   - Select "Community Cloud" or "Secure Cloud"
 
-**Key optimizations:**
-1. **Layer ordering**: Dependencies are installed in separate layers to maximize cache hits
-2. **Pip cache enabled**: Removed `--no-cache-dir` to allow pip to cache downloaded packages between builds
-3. **Late cleanup**: Cleanup operations run at the end to avoid breaking cache for earlier layers
-4. **Requirements first**: `requirements.txt` is copied early to enable caching of pip installations
+2. **Deploy Using Docker Image**
+   - **Container Image**: `ghcr.io/quinteroac/my-anime-genearator:latest`
+   - **Container Disk**: Minimum 20GB (recommended: 50GB+)
+   - **Volume**: Optional, for persistent model storage
 
-**First build**: Takes ~15-30 minutes (downloads PyTorch, ComfyUI, dependencies)  
-**Subsequent builds**: Typically takes 2-5 minutes if only code changes
-
-**To force rebuild without cache:**
-```bash
-docker build --no-cache -t comfyui-runpod .
-```
-
-**To use build cache when building:**
-```bash
-# Standard build (uses cache automatically)
-docker build -t comfyui-runpod .
-
-# Using Docker BuildKit for better caching
-DOCKER_BUILDKIT=1 docker build -t comfyui-runpod .
-```
-
-## Local Execution
-
-To run the container locally:
-
-```bash
-docker run -p 8188:8188 -p 7860:7860 comfyui-runpod
-```
-
-Then you can access:
-- **ComfyUI** at `http://localhost:8188`
-- **CivitAI Model Downloader** at `http://localhost:7860`
-
-## CivitAI Model Downloader
-
-The container includes a built-in web interface for downloading models directly from CivitAI to the correct ComfyUI directories.
-
-### Accessing the Downloader
-
-The CivitAI Model Downloader is available at port `7860` by default:
-
-```bash
-docker run -p 8188:8188 -p 7860:7860 comfyui-runpod
-```
-
-Access the downloader at: `http://localhost:7860`
-
-### Features
-
-- 🎨 **Web Interface**: Simple, user-friendly web interface for downloading models
-- 📦 **Automatic Placement**: Models are automatically placed in the correct ComfyUI directory based on type (Checkpoint, LoRA, VAE, Controlnet, etc.)
-- 📊 **Real-time Progress**: Live progress bar showing download percentage and MB downloaded
-- 🔑 **API Key Support**: Optional CivitAI API key for NSFW models and faster downloads
-- 🔍 **URL/ID Support**: Enter model ID or full CivitAI URL
-
-### Usage
-
-1. **Open the web interface** at `http://localhost:7860`
-2. **Enter your CivitAI API key** (optional, but recommended for NSFW models and higher speeds)
-   - Get your API key from: https://civitai.com/user/account
-3. **Enter the Model ID or URL**:
-   - Option 1: Paste the full CivitAI URL (e.g., `https://civitai.com/models/12345/example-model`)
-   - Option 2: Enter just the model ID (e.g., `12345`)
-4. **Optionally specify a Version ID** (leave empty for latest version)
-5. **Click "Download Model"** and watch the progress bar update in real-time
-
-### Example
-
-```
-Model URL: https://civitai.com/models/12345/example-model
-Model ID: 12345
-```
-
-The model will be automatically downloaded to the appropriate directory:
-- **Checkpoints** → `/app/ComfyUI/models/checkpoints/`
-- **LoRA** → `/app/ComfyUI/models/loras/`
-- **VAE** → `/app/ComfyUI/models/vae/`
-- **Controlnet** → `/app/ComfyUI/models/controlnet/`
-- And so on...
-
-### Configuration
-
-You can customize the CivitAI downloader port and host using environment variables:
-
-- `CIVITAI_PORT`: Port for the CivitAI downloader (default: 7860)
-- `CIVITAI_HOST`: Host for the CivitAI downloader (default: 0.0.0.0)
-
-Example:
-```bash
-docker run -p 8188:8188 -p 9000:9000 \
-  -e CIVITAI_PORT=9000 \
-  -e CIVITAI_HOST=0.0.0.0 \
-  comfyui-runpod
-```
-
-### Benefits of Using an API Key
-
-- ✅ Access to NSFW models
-- ✅ Higher download speeds
-- ✅ Better rate limits
-- ✅ Access to private models (if you have permission)
-
-### Notes
-
-- The downloader runs automatically when the container starts
-- Downloads are streamed directly to the appropriate ComfyUI model directory
-- If a model already exists, the downloader will notify you
-- Progress is tracked in real-time with detailed MB information
-
-## Automated Builds with GitHub Actions
-
-This repository includes a GitHub Actions workflow for automatic Docker image builds to GitHub Container Registry (GHCR).
-
-### Self-Hosted Runner Setup
-
-The workflow is configured to use a **self-hosted runner** to avoid disk space limitations of GitHub-hosted runners.
-
-#### Prerequisites
-
-Before setting up the runner, you need to install:
-
-1. **Docker Desktop** (required)
-   - Download from: https://www.docker.com/products/docker-desktop
-   - Make sure WSL 2 is enabled (Docker Desktop will prompt you during installation)
-   - Verify installation: `docker --version`
-
-2. **Git** (required)
-   - Download from: https://git-scm.com/download/win
-   - Usually already installed on Windows
-   - Verify installation: `git --version`
-
-3. **PowerShell 5.1+** (required)
-   - Comes pre-installed on Windows 10/11
-   - Or install PowerShell 7+ from: https://aka.ms/powershell-release
-   - Verify installation: `$PSVersionTable.PSVersion`
-
-4. **Disk Space** (recommended)
-   - At least 50GB free space for Docker images and build cache
-   - PyTorch and dependencies are large (~2-3GB)
-
-5. **GitHub Personal Access Token** (required for setup)
-   - Go to: https://github.com/settings/tokens/new
-   - Select `repo` scope (Full control of private repositories)
-   - Click "Generate token"
-
-The setup script (`setup-local-runner.ps1`) will automatically check for Docker and Git.
-
-**To set up the local runner:**
-
-1. **Run the setup script:**
-   ```powershell
-   .\setup-local-runner.ps1
-   ```
-   
-   The script will:
-   - Check for Docker installation
-   - Download the latest GitHub Actions runner
-   - Configure it for this repository
-
-2. **Start the runner:**
-   ```powershell
-   cd _runner
-   .\run.cmd
+3. **Configure Environment Variables**
+   ```bash
+   COMFYUI_URL=http://localhost:8188
+   OPENAI_API_KEY=your_openai_api_key_here  # Optional, for AI enrichment
+   CIVITAI_API_KEY=your_civitai_api_key_here  # Optional, for CivitAI downloads
    ```
 
-3. **Trigger a workflow:**
-   - Push to `main` branch, or
-   - Go to Actions → "Build Docker Image" → "Run workflow"
+4. **Expose Ports**
+   - **Port 5000**: Anime Generator Web Interface
+   - **Port 8188**: ComfyUI (if running locally)
+   - **Port 7860**: CivitAI Model Downloader
 
-The runner will execute builds on your local machine using your Docker installation.
+5. **Access the Application**
+   - Wait for the container to start (check logs)
+   - Open the Anime Generator at: `https://your-pod-id-5000.proxy.runpod.net`
+   - Or use your RunPod endpoint URL
 
-## Configuration
+### Using External ComfyUI Backend
 
-### Environment Variables
+If you have ComfyUI running separately (e.g., on another RunPod pod):
 
-**ComfyUI:**
-- `PORT`: Port on which ComfyUI will run (default: 8188)
-- `HOST`: Host on which ComfyUI will run (default: 0.0.0.0)
+1. **Set the ComfyUI URL**:
+   ```bash
+   COMFYUI_URL=https://your-comfyui-pod-id-8188.proxy.runpod.net
+   ```
 
-**CivitAI Downloader:**
-- `CIVITAI_PORT`: Port for the CivitAI downloader web interface (default: 7860)
-- `CIVITAI_HOST`: Host for the CivitAI downloader (default: 0.0.0.0)
+2. **Start the Anime Generator**:
+   ```bash
+   ANIME_GENERATOR_PORT=5000
+   ANIME_GENERATOR_HOST=0.0.0.0
+   ```
 
-Example:
-```bash
-docker run -p 8188:8188 -p 7860:7860 \
-  -e PORT=8188 \
-  -e HOST=0.0.0.0 \
-  -e CIVITAI_PORT=7860 \
-  -e CIVITAI_HOST=0.0.0.0 \
-  comfyui-runpod
+The application will automatically connect to the external ComfyUI instance.
+
+## 📋 Environment Variables
+
+### Required
+- `COMFYUI_URL`: URL of the ComfyUI instance
+  - Local: `http://localhost:8188` or `http://127.0.0.1:8188`
+  - Remote: `https://your-comfyui-pod-id-8188.proxy.runpod.net`
+
+### Optional
+- `OPENAI_API_KEY`: OpenAI API key for prompt enrichment feature
+  - Get your key at: https://platform.openai.com/api-keys
+  - Required only if using AI enrichment
+
+- `CIVITAI_API_KEY`: CivitAI API key for model downloads
+  - Get your key at: https://civitai.com/user/account
+  - Provides access to NSFW models and faster downloads
+
+- `ANIME_GENERATOR_PORT`: Port for the Anime Generator web interface (default: 5000)
+- `ANIME_GENERATOR_HOST`: Host for the Anime Generator (default: 0.0.0.0)
+
+- `COMFYUI_HOST`: ComfyUI host if using separate host/port config (default: 127.0.0.1)
+- `COMFYUI_PORT`: ComfyUI port if using separate host/port config (default: 8188)
+
+- `NETAYUME_MODEL_ID`: Model ID for automatic NetaYume Lumina download (default: 1790792)
+- `LORA_DETAILER_ID`: LoRA ID for automatic detailer download (default: 1974130)
+
+## 🎯 Usage
+
+### Interactive Mode
+
+1. **Start a new prompt** by clicking the "+" button or toggling to interactive mode
+2. **Follow the steps**:
+   - Enter your description for each category
+   - Use suggested tags by clicking on them (they'll be added to your prompt)
+   - Click "Renew Tags" to load more tag suggestions
+   - Press Enter or click the Generate button to proceed
+3. **Generate images**:
+   - Intermediate steps generate previews at 25 steps
+   - Final step generates the full-quality image at 50 steps
+   - Seed remains constant throughout the flow
+
+### Direct Mode
+
+1. **Toggle to Direct Mode** using the mode selector
+2. **Enter your complete prompt** in the textarea
+3. **Select aspect ratio** (Square, Portrait, Landscape)
+4. **Generate** - images are always generated at 50 steps with a random seed
+
+### AI Enrichment
+
+Enable the AI enrichment toggle to automatically enhance your prompts using OpenAI's GPT models. This feature:
+- Improves prompt clarity and detail
+- Adds relevant tags and descriptions
+- Works in both interactive and direct modes
+
+## 📁 Project Structure
+
+```
+.
+├── anime_generator.py      # Main Flask application
+├── entrypoint.sh           # Container startup script
+├── Dockerfile              # Docker image definition
+├── requirements.txt        # Python dependencies
+├── civitai_downloader.py   # CivitAI model downloader
+├── civitai_web.py          # CivitAI web interface
+├── templates/
+│   └── index.html          # Frontend HTML template
+├── static/
+│   ├── css/
+│   │   └── style.css       # Application styles
+│   └── js/
+│       └── main.js         # Vue.js frontend logic
+├── data/
+│   └── tags.csv            # Tag database (800,000+ tags)
+└── workflows/
+    └── text-to-image/
+        └── text-to-image-lumina.json  # ComfyUI workflow
 ```
 
-## Features
+## 🔧 Technical Details
 
-- ✅ Python 3.10
-- ✅ PyTorch with CUDA 11.8 support
-- ✅ ComfyUI with all its dependencies
-- ✅ ComfyUI Manager pre-installed for easy plugin management
-- ✅ **CivitAI Model Downloader** - Web interface for downloading models directly from CivitAI
-- ✅ Compatible with RunPod GPU (NVIDIA)
-- ✅ XFormers for memory optimization
-- ✅ Production-ready configuration
-- ✅ Entrypoint script with GPU verification
+### Backend
+- **Framework**: Flask (Python 3.10)
+- **Image Generation**: ComfyUI integration via API
+- **Tag System**: In-memory cache for fast tag retrieval
+- **Image Serving**: Proxies images from ComfyUI `/view` endpoint
 
-## Notes
+### Frontend
+- **Framework**: Vue.js 3
+- **Styling**: Custom CSS with dark theme
+- **Icons**: Heroicons (inline SVG)
+- **Real-time Updates**: WebSocket for generation status
 
-- Models can be loaded in `/app/ComfyUI/models`
-- Outputs are saved in `/app/ComfyUI/output`
-- Inputs are read from `/app/ComfyUI/input`
-- Custom nodes and plugins can be installed via ComfyUI Manager (accessible through the ComfyUI web interface)
+### Dependencies
+- PyTorch with CUDA 12.1 support (optimized for RTX 4090/5090)
+- ComfyUI with ComfyUI Manager
+- Flask and Flask-CORS
+- WebSocket client for ComfyUI communication
+- OpenAI API client (optional)
 
-## Additional Resources
+## 🐳 Docker Image
+
+The application is available as a Docker image on GitHub Container Registry:
+
+```bash
+ghcr.io/quinteroac/my-anime-genearator:latest
+```
+
+### Building Locally
+
+```bash
+docker build -t my-anime-generator .
+docker run -p 5000:5000 \
+  -e COMFYUI_URL=http://localhost:8188 \
+  -e OPENAI_API_KEY=your_key \
+  my-anime-generator
+```
+
+## 📊 Performance
+
+- **Tag Loading**: Tags are cached in memory on startup (~2-3 seconds)
+- **Tag Retrieval**: O(1) lookup after cache initialization
+- **Image Generation**: Depends on ComfyUI and GPU (typically 10-30 seconds per image)
+- **Memory Usage**: ~2-3GB for tag cache, additional memory for ComfyUI
+
+## 🔍 Troubleshooting
+
+### Images Not Showing
+
+If images are not displaying:
+- Verify `COMFYUI_URL` is correctly set
+- Check that ComfyUI is accessible from the Anime Generator
+- Ensure the ComfyUI instance is running and healthy
+- Check container logs: `docker logs <container_id>`
+
+### Tags Not Loading
+
+If tags are not appearing:
+- Check that `data/tags.csv` exists in the container
+- Verify the file is readable (check permissions)
+- Check application logs for tag loading errors
+
+### Connection Issues
+
+If you see connection errors:
+- Verify network connectivity between services
+- Check firewall settings on RunPod
+- Ensure ports are correctly exposed
+- Verify proxy URLs are correct
+
+## 📝 Notes
+
+- The application automatically downloads the NetaYume Lumina model and detailer LoRA on first startup
+- Models are stored in `/app/ComfyUI/models/`
+- Generated images are saved in ComfyUI's output directory
+- Tag database contains 800,000+ tags from Danbooru, properly categorized
+- The application supports both local and remote ComfyUI instances
+
+## 🔗 Additional Resources
 
 - [ComfyUI Documentation](https://github.com/comfyanonymous/ComfyUI)
 - [RunPod Documentation](https://docs.runpod.io/)
+- [CivitAI](https://civitai.com/)
+- [OpenAI API Documentation](https://platform.openai.com/docs)
+
+## 📄 License
+
+This project uses ComfyUI and other open-source components. Please refer to their respective licenses.
+
+---
+
+**For support or issues, please check the application logs or create an issue in the repository.**

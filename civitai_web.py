@@ -387,13 +387,16 @@ def extract_model_id(model_input: str) -> str:
 @app.route('/')
 def index():
     """Main page"""
-    return render_template_string(HTML_TEMPLATE, message="", message_type="")
+    # Pre-fill API key from environment variable if available
+    api_key = os.environ.get('CIVITAI_API_KEY', '')
+    return render_template_string(HTML_TEMPLATE, message="", message_type="", api_key=api_key)
 
 
 @app.route('/download', methods=['POST'])
 def download():
     """Handle model download"""
-    api_key = request.form.get('api_key', '').strip() or None
+    # Use form API key, or fall back to environment variable, or None
+    api_key = request.form.get('api_key', '').strip() or os.environ.get('CIVITAI_API_KEY') or None
     model_input = request.form.get('model_id', '').strip()
     version_id = request.form.get('version_id', '').strip() or None
     
@@ -482,7 +485,8 @@ def get_progress():
 def search():
     """API endpoint to search models"""
     query = request.args.get('q', '')
-    api_key = request.args.get('api_key', '').strip() or None
+    # Use query param API key, or fall back to environment variable, or None
+    api_key = request.args.get('api_key', '').strip() or os.environ.get('CIVITAI_API_KEY') or None
     
     if not query:
         return jsonify({'error': 'Query parameter required'}), 400
