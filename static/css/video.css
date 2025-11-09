@@ -1,0 +1,220 @@
+.video-generator-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px 48px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.video-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.video-title {
+    font-size: 20px;
+    font-weight: 500;
+    color: #f0f0f0;
+    margin: 0;
+}
+
+.video-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #e0e0e0;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.video-back-btn:hover:not(:disabled) {
+    border-color: #ffffff;
+    color: #ffffff;
+    box-shadow: 0 0 0 1px #ffffff;
+}
+
+.video-back-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.video-generator-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.video-preview-panel {
+    width: 100%;
+    max-width: 960px;
+    background: #0f0f0f;
+    border: 1px solid #252525;
+    border-radius: 10px;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.video-preview-header {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.video-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 8px 14px;
+    color: #cccccc;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.video-toggle-btn.active {
+    border-color: #ffffff;
+    color: #ffffff;
+    box-shadow: 0 0 0 1px #ffffff;
+}
+
+.video-toggle-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.video-preview-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.video-source-preview {
+    background: #111111;
+    border: 1px solid #2c2c2c;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-source-preview.has-image {
+    padding: 0;
+    min-height: 0;
+    background: transparent;
+    border: none;
+    display: flex;
+    width: auto;
+}
+
+.video-source-preview.is-empty {
+    min-height: 280px;
+}
+
+.video-source-aspect {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 0 auto;
+    border: 1px solid #2c2c2c;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.5);
+}
+
+.video-source-aspect img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.video-placeholder {
+    color: #a0a0a0;
+    text-align: center;
+    font-size: 14px;
+}
+
+.video-error {
+    color: #ff6b6b;
+    font-size: 14px;
+}
+
+.video-results {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.video-result-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.video-result-card {
+    flex: 1 1 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.generated-video {
+    width: 100%;
+    max-height: 320px;
+    border: 1px solid #333333;
+    border-radius: 8px;
+    background: #000;
+}
+
+.generated-video:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px #505050;
+}
+
+.video-download-btn {
+    align-self: flex-start;
+    background: transparent;
+    color: #e0e0e0;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    text-decoration: none;
+    transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.video-download-btn:hover {
+    border-color: #ffffff;
+    color: #ffffff;
+    box-shadow: 0 0 0 1px #ffffff;
+}
+
+.video-input-group {
+    padding-bottom: 70px;
+}
+
+.video-inline-actions {
+    max-width: 800px;
+    margin: 8px auto 0;
+    padding: 0 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}

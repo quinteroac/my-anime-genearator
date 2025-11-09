@@ -19,7 +19,8 @@ createApp({
             currentStep: 0,
             promptParts: {},
             currentInput: '',
-            selectedResolution: '1024x1024',
+            selectedResolution: '960x960',
+            selectedSteps: 50, // Pasos de inferencia por defecto
             isGenerating: false,
             modalImage: null,
             messageIdCounter: 0,
@@ -261,8 +262,8 @@ createApp({
                     this.currentPrompt = promptToAdd.trim();
                 }
                 
-                // Generar imagen con el prompt concatenado (modo directo siempre usa 50 steps)
-                await this.generateImages(50);
+                // Generar imagen con el prompt concatenado (modo directo usa selectedSteps)
+                await this.generateImages(this.selectedSteps);
                 
                 // Limpiar solo el textarea (no el currentPrompt) y restaurar el focus para continuar el chat
                 this.directPrompt = '';
@@ -388,15 +389,15 @@ createApp({
                 const hasInput = finalInput && finalInput.trim().replace(/,/g, '').trim().length > 0;
                 
                 // Solo generar imagen si:
-                // 1. Es el último paso (siempre generar, incluso si está vacío) - 50 steps
-                // 2. O si hay un prompt válido Y hay input en pasos intermedios (25 steps)
+                // 1. Es el último paso (siempre generar, incluso si está vacío) - usa selectedSteps
+                // 2. O si hay un prompt válido Y hay input en pasos intermedios - usa selectedSteps
                 if (isLastStep) {
-                    // En el último paso, generar siempre (50 steps), incluso si el prompt está vacío
-                    await this.generateImages(50, null, true);
+                    // En el último paso, generar siempre, incluso si el prompt está vacío
+                    await this.generateImages(this.selectedSteps, null, true);
                 } else if (hasValidPrompt && hasInput) {
-                    // En pasos intermedios, solo generar si hay input válido (25 steps)
+                    // En pasos intermedios, solo generar si hay input válido
                     // Si no hay input, no generar imagen, solo avanzar al siguiente paso
-                    await this.generateImages(25);
+                    await this.generateImages(this.selectedSteps);
                 }
                 // Si no es el último paso y no hay input, no generar imagen, solo avanzar
                 
@@ -583,8 +584,36 @@ createApp({
             });
         },
         
+        getMediaUrl(media) {
+            if (!media || !media.filename) {
+                return '';
+            }
+            const subfolder = media.subfolder || '';
+            const type = media.type || 'output';
+            return `/api/image/${media.filename}?subfolder=${subfolder}&type=${type}`;
+        },
+
         getImageUrl(image) {
-            return `/api/image/${image.filename}?subfolder=${image.subfolder || ''}&type=${image.type || 'output'}`;
+            return this.getMediaUrl(image);
+        },
+
+        openVideoGenerator(image) {
+            if (!image || !image.filename) {
+                return;
+            }
+            const params = new URLSearchParams({
+                filename: image.filename,
+                subfolder: image.subfolder || '',
+                type: image.type || 'output'
+            });
+            const basePrompt = (this.currentPrompt && this.currentPrompt.trim())
+                || (this.directPrompt && this.directPrompt.trim())
+                || '';
+            if (basePrompt) {
+                params.set('prompt', basePrompt);
+            }
+            params.set('resolution', this.selectedResolution);
+            window.location.href = `/video?${params.toString()}`;
         },
         
         showFullSize(image) {

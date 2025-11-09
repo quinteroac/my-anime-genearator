@@ -136,6 +136,7 @@ def load_workflow(workflow_path):
 
 # Cargar workflow base de Lumina
 WORKFLOW_PATH = os.environ.get('LUMINA_WORKFLOW_PATH', 'workflows/text-to-image/text-to-image-lumina.json')
+VIDEO_WORKFLOW_PATH = os.environ.get('VIDEO_WORKFLOW_PATH', 'workflows/image-to-video/video_wan2_2_14B_i2v_remix.json')
 try:
     BASE_WORKFLOW = load_workflow(WORKFLOW_PATH)
 except Exception as e:
@@ -163,8 +164,16 @@ def queue_prompt(workflow, client_id=str(uuid.uuid4())):
         print(f"Error in queue_prompt: {e}")
         raise
 
-def get_image_filename(prompt_id):
-    """Obtener el nombre del archivo de imagen generado para un prompt_id específico"""
+def get_media_outputs(prompt_id, target_nodes=None, media_key="images"):
+    """Obtener archivos generados (imágenes, videos, etc.) para un prompt_id específico"""
+    target_nodes = target_nodes or ["9"]
+    possible_keys = [media_key]
+    if media_key == "videos":
+        possible_keys.extend(["video", "files", "images"])  # ComfyUI variations
+    elif media_key == "images":
+        possible_keys.extend(["image", "files"])
+    else:
+        possible_keys.extend(["videos", "images", "files"])
     try:
         # Intentar primero el endpoint específico /history/{prompt_id}
         try:
@@ -172,65 +181,83 @@ def get_image_filename(prompt_id):
             if response.status_code == 200:
                 history_data = response.json()
                 print(f"[OK] Endpoint /history/{prompt_id} works correctly")
-                
-                # El endpoint /history/{prompt_id} devuelve directamente los datos del prompt
-                # Buscar imágenes en el nodo SaveImage (nodo 9)
-                if "outputs" in history_data and "9" in history_data["outputs"]:
-                    node_outputs = history_data["outputs"]["9"]
-                    if "images" in node_outputs:
-                        images = node_outputs["images"]
-                        print(f"[OK] Images found in specific endpoint: {len(images) if isinstance(images, list) else 1}")
-                        # Asegurarnos de que es una lista
-                        if isinstance(images, list):
-                            return images
-                        else:
-                            return [images]
+                print(f"[DEBUG] /history/{prompt_id} keys: {list(history_data.keys())}")
+
+                # Algunos backends devuelven {"outputs": {...}}, otros {prompt_id: {...}}
+                candidates = []
+                if isinstance(history_data, dict):
+                    if "outputs" in history_data:
+                        candidates.append(history_data)
+                    if prompt_id in history_data and isinstance(history_data[prompt_id], dict):
+                        candidates.append(history_data[prompt_id])
+
+                for candidate in candidates:
+                    if "outputs" not in candidate:
+                        continue
+                    for node_id in target_nodes:
+                        if node_id in candidate["outputs"]:
+                            node_outputs = candidate["outputs"][node_id]
+                            print(f"[DEBUG] Node {node_id} outputs keys: {list(node_outputs.keys())}")
+                            for key in possible_keys:
+                                if key in node_outputs:
+                                    media = node_outputs[key]
+                                    count = len(media) if isinstance(media, list) else 1
+                                    print(f"[OK] {key.capitalize()} found in specific endpoint: {count}")
+                                    if isinstance(media, list):
+                                        return media
+                                    return [media]
+
+                if not candidates:
+                    print(f"[WARN] Unexpected structure from /history/{prompt_id}: {history_data}")
+                else:
+                    print(f"[WARN] 'outputs' key not found in candidates for /history/{prompt_id}")
         except requests.exceptions.RequestException as e:
             print(f"[WARN] Endpoint /history/{prompt_id} not available (status: {getattr(e.response, 'status_code', 'N/A')}), using fallback")
-        
+
         # Fallback: obtener el historial completo y buscar el prompt_id
         print(f"Using full history to search for prompt_id: {prompt_id}")
         response = requests.get(f"{COMFYUI_URL}/history", timeout=5)
         if response.status_code == 200:
             history = response.json()
-            
-            # El historial tiene esta estructura: {prompt_id: {status: {...}, outputs: {...}}}
-            # Buscar el prompt_id específico en el historial
             print(f"Searching for prompt_id '{prompt_id}' in history. Total entries: {len(history)}")
             if prompt_id in history:
                 prompt_data = history[prompt_id]
                 print(f"[OK] Prompt_id found in history")
-                
-                # Buscar imágenes en el nodo SaveImage (nodo 9)
-                if "outputs" in prompt_data and "9" in prompt_data["outputs"]:
-                    node_outputs = prompt_data["outputs"]["9"]
-                    if "images" in node_outputs:
-                        images = node_outputs["images"]
-                        print(f"[OK] Images found in full history: {len(images) if isinstance(images, list) else 1}")
-                        # Asegurarnos de que es una lista
-                        if isinstance(images, list):
-                            print(f"  Filenames: {[img.get('filename', str(img)) if isinstance(img, dict) else img for img in images[:4]]}")
-                            return images
-                        else:
-                            print(f"  Filename: {images.get('filename', str(images)) if isinstance(images, dict) else images}")
-                            return [images]
+                print(f"[DEBUG] prompt_data keys: {list(prompt_data.keys())}")
+                if "outputs" in prompt_data:
+                    for node_id in target_nodes:
+                        if node_id in prompt_data["outputs"]:
+                            node_outputs = prompt_data["outputs"][node_id]
+                            print(f"[DEBUG] Node {node_id} outputs keys: {list(node_outputs.keys())}")
+                            for key in possible_keys:
+                                if key in node_outputs:
+                                    media = node_outputs[key]
+                                    count = len(media) if isinstance(media, list) else 1
+                                    print(f"[OK] {key.capitalize()} found in full history: {count}")
+                                    if isinstance(media, list):
+                                        print(f"  Filenames: {[item.get('filename', str(item)) if isinstance(item, dict) else item for item in media[:4]]}")
+                                        return media
+                                    print(f"  Filename: {media.get('filename', str(media)) if isinstance(media, dict) else media}")
+                                    return [media]
                 else:
-                    print(f"[WARN] No outputs found in node 9 for prompt_id {prompt_id}")
+                    print(f"[WARN] 'outputs' key not found in prompt_data: {prompt_data}")
             else:
                 print(f"[WARN] Prompt_id '{prompt_id}' not found in history. Available IDs: {list(history.keys())[:5]}...")
-            
-            # Si aún no encontramos, buscar en toda la estructura
-            # Pero priorizar el prompt_id exacto
+
+            # Buscar en toda la estructura como último recurso
             for key, value in history.items():
-                if key == prompt_id:
-                    if isinstance(value, dict) and "outputs" in value:
-                        for node_id, node_data in value.get("outputs", {}).items():
-                            if node_id == "9" and "images" in node_data:
-                                images = node_data["images"]
-                                if isinstance(images, list):
-                                    return images
-                                else:
-                                    return [images]
+                if key == prompt_id and isinstance(value, dict) and "outputs" in value:
+                    for node_id, node_data in value.get("outputs", {}).items():
+                        if node_id in target_nodes:
+                            print(f"[DEBUG] Node {node_id} (fallback) outputs keys: {list(node_data.keys())}")
+                            for media_key_candidate in possible_keys:
+                                if media_key_candidate in node_data:
+                                    media = node_data[media_key_candidate]
+                                    if isinstance(media, list):
+                                        return media
+                                    return [media]
+                elif key == prompt_id:
+                    print(f"[WARN] Fallback entry for {prompt_id} lacks 'outputs': {value}")
         return None
     except Exception as e:
         print(f"Error getting history for prompt_id {prompt_id}: {e}")
@@ -238,9 +265,15 @@ def get_image_filename(prompt_id):
         traceback.print_exc()
         return None
 
-def wait_for_completion(client_id, prompt_id, max_wait=300):
-    """Esperar a que se complete la generación y obtener las imágenes"""
-    images = []
+
+def get_image_filename(prompt_id):
+    """Compatibilidad hacia atrás para obtener imágenes generadas"""
+    return get_media_outputs(prompt_id, target_nodes=["9"], media_key="images")
+
+def wait_for_completion(client_id, prompt_id, max_wait=300, target_nodes=None, media_key="images"):
+    """Esperar a que se complete la generación y obtener los archivos solicitados"""
+    target_nodes = target_nodes or ["9"]
+    media_items = []
     execution_completed = False
     
     def on_message(ws, message):
@@ -250,7 +283,7 @@ def wait_for_completion(client_id, prompt_id, max_wait=300):
                 data = json.loads(message)
                 if data.get("type") == "executed":
                     node_id = data.get("data", {}).get("node")
-                    if node_id == "9":  # SaveImage node ejecutado
+                    if node_id and node_id in target_nodes:
                         execution_completed = True
                 elif data.get("type") == "execution_cached":
                     execution_completed = True
@@ -307,60 +340,56 @@ def wait_for_completion(client_id, prompt_id, max_wait=300):
     last_check = 0
     
     # Primera verificación inmediata (para el mock que guarda instantáneamente)
-    image_info = get_image_filename(prompt_id)
-    if image_info and len(image_info) > 0:
-        valid_images = []
-        for img in image_info:
-            if isinstance(img, dict):
-                valid_images.append({
-                    "filename": img.get("filename", ""),
-                    "subfolder": img.get("subfolder", ""),
-                    "type": img.get("type", "output")
+    media_info = get_media_outputs(prompt_id, target_nodes=target_nodes, media_key=media_key)
+    if media_info and len(media_info) > 0:
+        valid_media = []
+        for item in media_info:
+            if isinstance(item, dict):
+                valid_media.append({
+                    "filename": item.get("filename", ""),
+                    "subfolder": item.get("subfolder", ""),
+                    "type": item.get("type", "output")
                 })
-            elif isinstance(img, str):
-                valid_images.append({
-                    "filename": img,
+            elif isinstance(item, str):
+                valid_media.append({
+                    "filename": item,
                     "subfolder": "",
                     "type": "output"
                 })
-        
-        if valid_images:
-            print(f"[OK] Images found immediately, returning {len(valid_images)} image(s)")
+
+        if valid_media:
+            print(f"[OK] {media_key.capitalize()} found immediately, returning {len(valid_media)} item(s)")
             if ws:
                 try:
                     ws.close()
                 except:
                     pass
-            return valid_images
+            return valid_media
     
     while time.time() - start_time < max_wait:
         # Verificar si hay imágenes disponibles en el historial
         if time.time() - last_check >= check_interval:
-            image_info = get_image_filename(prompt_id)
-            if image_info and len(image_info) > 0:
-                # Verificar que las imágenes realmente existen
-                valid_images = []
-                for img in image_info:
-                    if isinstance(img, dict):
-                        valid_images.append({
-                            "filename": img.get("filename", ""),
-                            "subfolder": img.get("subfolder", ""),
-                            "type": img.get("type", "output")
+            media_info = get_media_outputs(prompt_id, target_nodes=target_nodes, media_key=media_key)
+            if media_info and len(media_info) > 0:
+                valid_media = []
+                for item in media_info:
+                    if isinstance(item, dict):
+                        valid_media.append({
+                            "filename": item.get("filename", ""),
+                            "subfolder": item.get("subfolder", ""),
+                            "type": item.get("type", "output")
                         })
-                    elif isinstance(img, str):
-                        # Si es solo un string, asumir que es el filename
-                        valid_images.append({
-                            "filename": img,
+                    elif isinstance(item, str):
+                        valid_media.append({
+                            "filename": item,
                             "subfolder": "",
                             "type": "output"
                         })
-                
-                if valid_images:
-                    images = valid_images
-                    # Si tenemos la imagen esperada (1 para pruebas), salir
-                    if len(images) >= 1:
+
+                if valid_media:
+                    media_items = valid_media
+                    if len(media_items) >= 1:
                         break
-                    # Si execution_completed y tenemos imágenes, también salir
                     if execution_completed:
                         break
             last_check = time.time()
@@ -368,24 +397,24 @@ def wait_for_completion(client_id, prompt_id, max_wait=300):
         # Si execution_completed, esperar un poco más para que se guarden las imágenes
         if execution_completed:
             time.sleep(2)
-            image_info = get_image_filename(prompt_id)
-            if image_info and len(image_info) > 0:
-                valid_images = []
-                for img in image_info:
-                    if isinstance(img, dict):
-                        valid_images.append({
-                            "filename": img.get("filename", ""),
-                            "subfolder": img.get("subfolder", ""),
-                            "type": img.get("type", "output")
+            media_info = get_media_outputs(prompt_id, target_nodes=target_nodes, media_key=media_key)
+            if media_info and len(media_info) > 0:
+                valid_media = []
+                for item in media_info:
+                    if isinstance(item, dict):
+                        valid_media.append({
+                            "filename": item.get("filename", ""),
+                            "subfolder": item.get("subfolder", ""),
+                            "type": item.get("type", "output")
                         })
-                    elif isinstance(img, str):
-                        valid_images.append({
-                            "filename": img,
+                    elif isinstance(item, str):
+                        valid_media.append({
+                            "filename": item,
                             "subfolder": "",
                             "type": "output"
                         })
-                if valid_images:
-                    images = valid_images
+                if valid_media:
+                    media_items = valid_media
                     break
         
         time.sleep(0.5)
@@ -398,20 +427,50 @@ def wait_for_completion(client_id, prompt_id, max_wait=300):
             pass
     
     # Si aún no tenemos imágenes, intentar obtenerlas del historial una vez más
-    if not images:
+    if not media_items:
         time.sleep(2)  # Esperar un poco más
-        image_info = get_image_filename(prompt_id)
-        if image_info:
-            if isinstance(image_info, list):
-                images = image_info
+        media_info = get_media_outputs(prompt_id, target_nodes=target_nodes, media_key=media_key)
+        if media_info:
+            if isinstance(media_info, list):
+                media_items = media_info
             else:
-                images = [image_info]
-    
-    return images
+                media_items = [media_info]
+
+    return media_items
 
 def generate_random_seed():
     """Generar una semilla aleatoria para la generación de imágenes"""
     return random.randint(0, 2**32 - 1)
+
+
+def upload_image_to_comfy(filename, subfolder='', image_type='output'):
+    """Descargar una imagen desde ComfyUI y subirla al directorio de inputs"""
+    params = {
+        'filename': filename,
+        'type': image_type or 'output'
+    }
+    if subfolder:
+        params['subfolder'] = subfolder
+
+    response = requests.get(f"{COMFYUI_URL}/view", params=params, timeout=60)
+    if response.status_code != 200:
+        raise ValueError(f"Unable to retrieve source image: HTTP {response.status_code}")
+
+    content_type = response.headers.get('Content-Type', 'image/png')
+    extension = os.path.splitext(filename)[1] or '.png'
+    upload_name = f"video_source_{uuid.uuid4().hex}{extension}"
+
+    upload_response = requests.post(
+        f"{COMFYUI_URL}/upload/image",
+        data={'type': 'input', 'overwrite': 'true'},
+        files={'image': (upload_name, response.content, content_type)},
+        timeout=60
+    )
+
+    if upload_response.status_code != 200:
+        raise ValueError(f"Unable to upload source image: HTTP {upload_response.status_code}")
+
+    return upload_name
 
 def generate_images(positive_prompt, negative_prompt=None, width=1024, height=1024, steps=50, seed=None):
     """Generar imágenes usando ComfyUI"""
@@ -471,6 +530,97 @@ def generate_images(positive_prompt, negative_prompt=None, width=1024, height=10
 
 
 
+def generate_video_from_image(positive_prompt, source_image, width=None, height=None, negative_prompt=None, length=None, fps=None):
+    """Generar un video a partir de una imagen usando ComfyUI"""
+    workflow = load_workflow(VIDEO_WORKFLOW_PATH)
+    if not workflow:
+        raise ValueError("Video workflow could not be loaded")
+
+    workflow = json.loads(json.dumps(workflow))
+
+    if "93" in workflow:
+        workflow["93"]["inputs"]["text"] = positive_prompt
+
+    if negative_prompt and "89" in workflow:
+        base_negative = workflow["89"]["inputs"].get("text", "")
+        workflow["89"]["inputs"]["text"] = f"{base_negative} {negative_prompt}".strip()
+
+    if length is not None and "98" in workflow:
+        try:
+            workflow["98"]["inputs"]["length"] = int(length)
+        except (ValueError, TypeError):
+            pass
+
+    if fps is not None and "94" in workflow:
+        try:
+            workflow["94"]["inputs"]["fps"] = int(fps)
+        except (ValueError, TypeError):
+            pass
+
+    if width is not None and "98" in workflow:
+        try:
+            workflow["98"]["inputs"]["width"] = int(width)
+        except (ValueError, TypeError):
+            pass
+
+    if height is not None and "98" in workflow:
+        try:
+            workflow["98"]["inputs"]["height"] = int(height)
+        except (ValueError, TypeError):
+            pass
+
+    upload_name = upload_image_to_comfy(
+        filename=source_image.get('filename', ''),
+        subfolder=source_image.get('subfolder', ''),
+        image_type=source_image.get('type', 'output')
+    )
+
+    if "97" in workflow:
+        workflow["97"]["inputs"]["image"] = upload_name
+
+    client_id = str(uuid.uuid4())
+
+    result = queue_prompt(workflow, client_id)
+    prompt_id = result.get("prompt_id")
+
+    videos = wait_for_completion(
+        client_id,
+        prompt_id,
+        target_nodes=["108", "94"],  # Prefer SaveVideo (node 108), fallback to CreateVideo (94)
+        media_key="videos"
+    )
+
+    if not videos:
+        raise ValueError("Video generation completed but no output was returned")
+
+    normalized_videos = []
+    for video in videos:
+        if isinstance(video, dict):
+            normalized_videos.append({
+                **video,
+                "type": video.get("type") or "output",
+                "subfolder": video.get("subfolder", ""),
+                "filename": video.get("filename") or "",
+                "format": video.get("format") or video.get("extension") or "mp4"
+            })
+        else:
+            normalized_videos.append({
+                "filename": str(video),
+                "type": "output",
+                "subfolder": "",
+                "format": "mp4"
+            })
+
+    print(f"[VIDEO] Outputs for prompt {prompt_id}: {normalized_videos}")
+
+    return {
+        "success": True,
+        "prompt_id": prompt_id,
+        "client_id": client_id,
+        "videos": normalized_videos
+    }
+
+
 @app.route('/')
 def index():
     """Página principal con headers de no-caché"""
@@ -480,6 +630,26 @@ def index():
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
+
+
+@app.route('/video')
+def video_page():
+    """Página para la generación de video"""
+    filename = request.args.get('filename', '')
+    subfolder = request.args.get('subfolder', '')
+    image_type = request.args.get('type', 'output')
+    prompt = request.args.get('prompt', '')
+    resolution = request.args.get('resolution', '1024x1024')
+
+    video_data = {
+        "filename": filename,
+        "subfolder": subfolder,
+        "imageType": image_type,
+        "prompt": prompt,
+        "resolution": resolution
+    }
+
+    return render_template('video.html', video_data=video_data)
 
 @app.route('/api/generate', methods=['POST'])
 def api_generate():
@@ -522,6 +692,55 @@ def api_generate():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+@app.route('/api/generate-video', methods=['POST'])
+def api_generate_video():
+    """API endpoint para generar videos a partir de una imagen"""
+    try:
+        data = request.get_json()
+        prompt = (data.get('prompt') or '').strip()
+        if not prompt:
+            return jsonify({"success": False, "error": "Prompt is required"}), 400
+
+        image_info = data.get('image') or {}
+        if not image_info.get('filename'):
+            return jsonify({"success": False, "error": "Source image is required"}), 400
+
+        width = data.get('width')
+        height = data.get('height')
+
+        negative_prompt = (data.get('negative_prompt') or '').strip() or None
+        length = data.get('length')
+        fps = data.get('fps')
+
+        if width is not None:
+            try:
+                width = int(width)
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "Invalid width"}), 400
+
+        if height is not None:
+            try:
+                height = int(height)
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": "Invalid height"}), 400
+
+        result = generate_video_from_image(
+            positive_prompt=prompt,
+            source_image=image_info,
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt,
+            length=length,
+            fps=fps
+        )
+
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/image/<filename>')
 def serve_image(filename):
     """Servir imágenes generadas - siempre desde ComfyUI /view endpoint"""
@@ -535,7 +754,12 @@ def serve_image(filename):
             params = {"filename": filename, "type": image_type}
             if subfolder:
                 params["subfolder"] = subfolder
-            
+            format_param = request.args.get('format')
+            if format_param:
+                params["format"] = format_param
+
+            print(f"[MEDIA] Proxying request to /view with params: {params}")
+
             response = requests.get(f"{COMFYUI_URL}/view", params=params, stream=True, timeout=30)
             if response.status_code == 200:
                 from flask import Response

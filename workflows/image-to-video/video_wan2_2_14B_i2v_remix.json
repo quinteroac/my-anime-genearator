@@ -1,0 +1,270 @@
+{
+  "84": {
+    "inputs": {
+      "clip_name": "nsfw_wan_umt5-xxl_fp8_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Cargar CLIP"
+    }
+  },
+  "85": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 867101111408131,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 2,
+      "end_at_step": 4,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "103",
+        0
+      ],
+      "positive": [
+        "98",
+        0
+      ],
+      "negative": [
+        "98",
+        1
+      ],
+      "latent_image": [
+        "86",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Avanzado)"
+    }
+  },
+  "86": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 1070579277290333,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 2,
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "104",
+        0
+      ],
+      "positive": [
+        "98",
+        0
+      ],
+      "negative": [
+        "98",
+        1
+      ],
+      "latent_image": [
+        "98",
+        2
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Avanzado)"
+    }
+  },
+  "87": {
+    "inputs": {
+      "samples": [
+        "85",
+        0
+      ],
+      "vae": [
+        "90",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Decodificación VAE"
+    }
+  },
+  "89": {
+    "inputs": {
+      "text": "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, image, still, overall grayish, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, distorted limbs, fingers fused together, static image, cluttered background, three legs, many people in the background, walking backwards.",
+      "clip": [
+        "84",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "90": {
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Cargar VAE"
+    }
+  },
+  "93": {
+    "inputs": {
+      "text": "A voluptuous dragon-girl with glowing amber eyes, curved obsidian horns, and bronze scales across her arms and thighs kneels in a misty sunlit forest clearing. Golden hour rays pierce through ancient trees, casting volumetric god-rays onto her sweat-glistened cleavage and white lace micro-bikini. \n\nShe slowly unfurls massive leathery wings, scales rippling like liquid metal. Camera orbits 360° low-angle, starting tight on her heaving chest, pushing in as her tail lashes violently, shattering bark and sending embers flying. Her eyes flare brighter, lips part in a sultry snarl, hot breath condensing in the cool air. \n\nCinematic anime style, hyper-detailed skin pores, subsurface scattering, 32mm lens, f1.4, shallow depth of field, dynamic motion blur on wings and tail, warm color grade, subtle film grain.",
+      "clip": [
+        "84",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "94": {
+    "inputs": {
+      "fps": 16,
+      "images": [
+        "87",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "Crear video"
+    }
+  },
+  "95": {
+    "inputs": {
+      "unet_name": "wan2.2/wan22RemixT2VI2V_i2vHighV20.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Cargar Modelo de Difusión"
+    }
+  },
+  "96": {
+    "inputs": {
+      "unet_name": "wan2.2/wan22RemixT2VI2V_i2vLowV20.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Cargar Modelo de Difusión"
+    }
+  },
+  "97": {
+    "inputs": {
+      "image": "pixai-1938903143514762003-1.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Cargar Imagen"
+    }
+  },
+  "98": {
+    "inputs": {
+      "width": 560,
+      "height": 560,
+      "length": 81,
+      "batch_size": 1,
+      "positive": [
+        "93",
+        0
+      ],
+      "negative": [
+        "89",
+        0
+      ],
+      "vae": [
+        "90",
+        0
+      ],
+      "start_image": [
+        "97",
+        0
+      ]
+    },
+    "class_type": "WanImageToVideo",
+    "_meta": {
+      "title": "WanImageToVideo"
+    }
+  },
+  "101": {
+    "inputs": {
+      "lora_name": "high_noise_model.safetensors",
+      "strength_model": 1,
+      "model": [
+        "95",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "CargadorLoRAModeloSolo"
+    }
+  },
+  "102": {
+    "inputs": {
+      "lora_name": "low_noise_model.safetensors",
+      "strength_model": 1,
+      "model": [
+        "96",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "CargadorLoRAModeloSolo"
+    }
+  },
+  "103": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "102",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "MuestreoDeModeloSD3"
+    }
+  },
+  "104": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "MuestreoDeModeloSD3"
+    }
+  },
+  "108": {
+    "inputs": {
+      "filename_prefix": "video/ComfyUI",
+      "format": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "94",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Guardar video"
+    }
+  }
+}

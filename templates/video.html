@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Anime Generator - Video</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/video.css') }}">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+    {% raw %}
+    <div id="video-app" class="video-generator-page">
+        <div class="video-header">
+            <button class="video-back-btn" @click="goBack" :disabled="isGeneratingVideo">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+                <span>Back to Images</span>
+            </button>
+            <h2 class="video-title">Video Generator</h2>
+        </div>
+
+        <div class="video-generator-content">
+            <div class="video-preview-panel">
+                <div class="video-preview-header">
+                    <button 
+                        class="video-toggle-btn"
+                        :class="{ active: previewMode === 'image' }"
+                        @click="previewMode = 'image'"
+                        :disabled="isGeneratingVideo"
+                        title="Show source image"
+                    >
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7l6 6-6 6"></path>
+                        </svg>
+                        Image
+                    </button>
+                    <button 
+                        class="video-toggle-btn"
+                        :class="{ active: previewMode === 'video' }"
+                        @click="previewMode = 'video'"
+                        :disabled="!videoResults.length || isGeneratingVideo"
+                        title="Show generated videos"
+                    >
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.5 5.5v13a1.5 1.5 0 002.287 1.264l10.5-6.5a1.5 1.5 0 000-2.528l-10.5-6.5A1.5 1.5 0 004.5 5.5z"></path>
+                        </svg>
+                        Video
+                    </button>
+                </div>
+
+                <div class="video-preview-body">
+                    <div 
+                        v-if="previewMode === 'image'"
+                        :class="['video-source-preview', (videoSourceImage && videoSourceImage.filename) ? 'has-image' : 'is-empty']"
+                        :style="imageContainerStyle"
+                    >
+                        <template v-if="videoSourceImage && videoSourceImage.filename">
+                            <div class="video-source-aspect" :style="{ paddingBottom: imageAspectRatioPadding }">
+                                <img 
+                                    :src="imageUrl"
+                                    alt="Source image"
+                                />
+                            </div>
+                        </template>
+                        <p v-else class="video-placeholder">No source image provided.</p>
+                    </div>
+                    <div v-else class="video-results">
+                        <p v-if="videoError" class="video-error">{{ videoError }}</p>
+                        <div v-if="videoResults.length" class="video-result-list">
+                            <div 
+                                v-for="(video, index) in videoResults"
+                                :key="`generated-video-${video.filename || index}`"
+                                class="video-result-card"
+                            >
+                                <video 
+                                    class="generated-video"
+                                    :src="getVideoUrl(video)"
+                                    controls
+                                    playsinline
+                                    preload="metadata"
+                                ></video>
+                                <a 
+                                    :href="getVideoUrl(video) + '&download=1'"
+                                    class="video-download-btn"
+                                    :download="video.filename || `generated-video-${index}.mp4`"
+                                >
+                                    Download
+                                </a>
+                            </div>
+                        </div>
+                        <p v-else class="video-placeholder">Generate a video to see results here.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-group video-input-group">
+            <div class="prompt-textfield-container">
+                <button 
+                    class="prompt-control-btn new-prompt-inline"
+                    @click="goBack"
+                    :disabled="isGeneratingVideo"
+                    title="Back to Images"
+                >
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                </button>
+                <button 
+                    class="generate-btn-inline"
+                    @click="generateVideo"
+                    :disabled="isGeneratingVideo"
+                    title="Generate Video"
+                >
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                    </svg>
+                </button>
+                <textarea 
+                    v-model="videoPrompt"
+                    ref="videoPromptInput"
+                    class="prompt-textarea-field"
+                    :disabled="isGeneratingVideo"
+                    placeholder="Describe what you want to generate..."
+                ></textarea>
+                <div class="prompt-controls">
+                    <div class="prompt-controls-left"></div>
+                    <div class="prompt-controls-right">
+                        <select 
+                            v-model="selectedOrientation" 
+                            class="aspect-ratio-select"
+                            :disabled="isGeneratingVideo"
+                            title="Aspect Ratio"
+                        >
+                            <option 
+                                v-for="option in videoResolutionOptions" 
+                                :key="option.key" 
+                                :value="option.key"
+                            >
+                                {{ option.label }} ({{ option.video }})
+                            </option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endraw %}
+
+    <script id="video-data-json" type="application/json">{{ video_data | tojson | safe }}</script>
+    <script>
+        window.__VIDEO_PAGE_DATA__ = JSON.parse(document.getElementById('video-data-json').textContent);
+    </script>
+    <script src="{{ url_for('static', filename='js/video.js') }}"></script>
+</body>
+</html>
+
