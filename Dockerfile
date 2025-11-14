@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip for better timeout handling
@@ -27,19 +28,24 @@ RUN pip install comfy-cli
 
 RUN comfy --skip-prompt install --nvidia
 
-WORKDIR /root
+WORKDIR /app
 
 # Copy CivitAI downloader scripts
 COPY comfy_model_downloader.sh /root/comfy_model_downloader.sh
-RUN chmod +x /app/comfy_model_downloader.sh
+RUN chmod +x /root/comfy_model_downloader.sh
 
-# Copy Anime Generator script and static files
-COPY anime_generator.py /app/anime_generator.py
-COPY templates /root/templates
-COPY static /root/static
-COPY data /root/data
-COPY workflows /root/workflows
-RUN chmod +x /root/anime_generator.py
+# Copy Anime Generator application files
+COPY app.py /app/app.py
+COPY config.py /app/config.py
+COPY auth.py /app/auth.py
+COPY domains /app/domains
+COPY routes /app/routes
+COPY utils /app/utils
+COPY templates /app/templates
+COPY static /app/static
+COPY data /app/data
+COPY workflows /app/workflows
+COPY defaults.json /app/defaults.json
 
 # Copy entrypoint script
 COPY entrypoint.sh /root/entrypoint.sh

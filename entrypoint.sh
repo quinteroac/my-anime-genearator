@@ -118,7 +118,7 @@ civitai_dl "diffusion_models" \
 # Start Anime Generator web interface in background
 echo "Starting Anime Generator on ${ANIME_GENERATOR_HOST}:${ANIME_GENERATOR_PORT}..."
 cd /app
-COMFYUI_HOST=${COMFYUI_HOST} COMFYUI_PORT=${COMFYUI_PORT} "$PYTHON_BIN" anime_generator.py > /tmp/anime_generator.log 2>&1 &
+COMFYUI_HOST=${COMFYUI_HOST} COMFYUI_PORT=${COMFYUI_PORT} "$PYTHON_BIN" app.py > /tmp/anime_generator.log 2>&1 &
 ANIME_GENERATOR_PID=$!
 
 # Wait a moment for the web server to start

@@ -1,7 +1,7 @@
 {
   "3": {
     "inputs": {
-      "seed": 729320633132996,
+      "seed": 799298890632012,
       "steps": 4,
       "cfg": 4,
       "sampler_name": "euler",
@@ -92,7 +92,7 @@
     "inputs": {
       "shift": 3,
       "model": [
-        "392",
+        "391",
         0
       ]
     },
@@ -116,7 +116,7 @@
   },
   "78": {
     "inputs": {
-      "image": "video_source_950726666bc74f729e0e9a6fe4a9ec88.png"
+      "image": "7540ca4e-a93d-42c7-9bed-3960ec5e116c_images_01_798ada04e35c4e269e9a8ebb82b9ec1c.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -139,24 +139,10 @@
       "title": "VAE Codificar"
     }
   },
-  "89": {
-    "inputs": {
-      "lora_name": "qwen-edit-skin_1.1_000002750.safetensors",
-      "strength_model": 1,
-      "model": [
-        "395",
-        0
-      ]
-    },
-    "class_type": "LoraLoaderModelOnly",
-    "_meta": {
-      "title": "CargadorLoRAModeloSolo"
-    }
-  },
   "93": {
     "inputs": {
       "upscale_method": "lanczos",
-      "megapixels": 0.92,
+      "megapixels": 1,
       "image": [
         "78",
         0
@@ -190,10 +176,10 @@
   },
   "111": {
     "inputs": {
-      "prompt": "",
+      "prompt": "cambia la pose por una pose en selfie parada",
       "clip": [
-        "38",
-        0
+        "391",
+        1
       ],
       "vae": [
         "39",
@@ -209,32 +195,34 @@
       "title": "TextEncodeQwenImageEditPlus"
     }
   },
-  "390": {
+  "112": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "391": {
     "inputs": {
       "lora_name": "Qwen-Image-Edit-2509-Lightning-4steps-V1.0-bf16.safetensors",
       "strength_model": 1,
+      "strength_clip": 1,
       "model": [
-        "89",
+        "37",
+        0
+      ],
+      "clip": [
+        "38",
         0
       ]
     },
-    "class_type": "LoraLoaderModelOnly",
+    "class_type": "LoraLoader",
     "_meta": {
-      "title": "CargadorLoRAModeloSolo"
-    }
-  },
-  "392": {
-    "inputs": {
-      "lora_name": "aldniki_qwen_reality_transform_v01.safetensors",
-      "strength_model": 1,
-      "model": [
-        "390",
-        0
-      ]
-    },
-    "class_type": "LoraLoaderModelOnly",
-    "_meta": {
-      "title": "CargadorLoRAModeloSolo"
+      "title": "Cargar LoRA"
     }
   }
 }

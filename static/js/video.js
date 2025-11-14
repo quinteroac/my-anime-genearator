@@ -80,13 +80,20 @@ createApp({
                 prompt_id: initial.promptId || ''
             },
             videoPrompt: sessionPrompt !== null ? sessionPrompt : (initial.prompt || ''),
+            lastVideoPrompt: sessionPrompt !== null ? sessionPrompt : (initial.prompt || ''),
             selectedOrientation: initialOrientation,
             isGeneratingVideo: false,
+            isExtendingVideo: false,
+            extendingVideoId: null,
             videoResults: [],
             videoError: null,
             previewMode: 'image',
             showSettingsModal: false,
-            settingsEndpoint: '',
+            settingsEndpoints: {
+                generate: '',
+                edit: '',
+                video: ''
+            },
             settingsError: '',
             settingsSaved: false,
             isSavingSettings: false,
@@ -106,7 +113,11 @@ createApp({
             }
             const mediaType = (this.videoSourceImage.type || '').toLowerCase();
             if (mediaType === 'local') {
-                return `/api/image/${this.videoSourceImage.filename}?type=local`;
+                const params = new URLSearchParams({ type: 'local' });
+                if (this.videoSourceImage.local_path) {
+                    params.append('local_path', this.videoSourceImage.local_path);
+                }
+                return `/api/image/${this.videoSourceImage.filename}?${params.toString()}`;
             }
             const subfolder = this.videoSourceImage.subfolder || '';
             const type = this.videoSourceImage.type || 'output';
@@ -194,14 +205,16 @@ createApp({
                 const data = await response.json();
                 if (response.ok && data.success) {
                     if (!this.settingsDirty) {
-                        this.settingsEndpoint = data.url || '';
+                        this.settingsEndpoints.generate = data.generate || data.url || '';
+                        this.settingsEndpoints.edit = data.edit || '';
+                        this.settingsEndpoints.video = data.video || '';
                     }
                 } else {
-                    this.settingsError = data.error || 'Unable to load ComfyUI endpoint.';
+                    this.settingsError = data.error || 'Unable to load ComfyUI endpoints.';
                 }
             } catch (error) {
-                console.error('Error loading ComfyUI endpoint:', error);
-                this.settingsError = 'Unexpected error loading endpoint.';
+                console.error('Error loading ComfyUI endpoints:', error);
+                this.settingsError = 'Unexpected error loading endpoints.';
             }
         },
         handleSettingsInput() {
@@ -209,34 +222,39 @@ createApp({
             this.settingsSaved = false;
         },
         async saveSettings() {
-            if (!this.settingsEndpoint || !this.settingsEndpoint.trim()) {
-                this.settingsError = 'Endpoint URL is required.';
-                this.settingsSaved = false;
-                return;
-            }
-
             this.isSavingSettings = true;
             this.settingsError = '';
             this.settingsSaved = false;
 
             try {
+                // Enviar todos los valores, incluso si están vacíos
+                const payload = {
+                    generate: (this.settingsEndpoints.generate || '').trim(),
+                    edit: (this.settingsEndpoints.edit || '').trim(),
+                    video: (this.settingsEndpoints.video || '').trim()
+                };
+
                 const response = await fetch('/api/settings/comfy-endpoint', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: this.settingsEndpoint.trim() })
+                    body: JSON.stringify(payload)
                 });
                 const data = await response.json();
                 if (response.ok && data.success) {
                     this.settingsSaved = true;
                     this.settingsDirty = false;
+                    // Actualizar los valores con los que retornó el servidor
+                    if (data.generate) this.settingsEndpoints.generate = data.generate;
+                    if (data.edit) this.settingsEndpoints.edit = data.edit;
+                    if (data.video) this.settingsEndpoints.video = data.video;
                 } else {
-                    this.settingsError = data.error || 'Unable to update endpoint.';
+                    this.settingsError = data.error || 'Unable to update endpoints.';
                 }
             } catch (error) {
-                console.error('Error saving ComfyUI endpoint:', error);
-                this.settingsError = 'Unexpected error updating endpoint.';
+                console.error('Error saving ComfyUI endpoints:', error);
+                this.settingsError = 'Unexpected error updating endpoints.';
             } finally {
                 this.isSavingSettings = false;
             }
@@ -249,7 +267,11 @@ createApp({
             if (!media || !media.filename) return '';
             const mediaType = (media.type || '').toLowerCase();
             if (mediaType === 'local') {
-                return `/api/image/${media.filename}?type=local`;
+                const params = new URLSearchParams({ type: 'local' });
+                if (media.local_path) {
+                    params.append('local_path', media.local_path);
+                }
+                return `/api/image/${media.filename}?${params.toString()}`;
             }
             const subfolder = media.subfolder || '';
             const type = media.type || 'output';
@@ -289,6 +311,7 @@ createApp({
 
                 if (this.videoSourceImage.dataUrl) {
                     try {
+                        // Para video, siempre subir a 'input' porque el nodo LoadImage busca ahí
                         const uploadResponse = await fetch('/api/upload-image-data', {
                             method: 'POST',
                             headers: {
@@ -297,7 +320,9 @@ createApp({
                             body: JSON.stringify({
                                 data_url: this.videoSourceImage.dataUrl,
                                 filename: this.videoSourceImage.original_name || this.videoSourceImage.filename || 'upload.png',
-                                mime_type: this.videoSourceImage.mimeType || 'image/png'
+                                mime_type: this.videoSourceImage.mimeType || 'image/png',
+                                mode: 'video',
+                                image_type: 'input'  // Siempre 'input' para video
                             })
                         });
 
@@ -360,7 +385,9 @@ createApp({
                         filename: video?.filename ?? '',
                         subfolder: video?.subfolder ?? '',
                         type: video?.type ?? 'output',
-                        format: video?.format ?? 'mp4'
+                        format: video?.format ?? 'mp4',
+                        local_path: video?.local_path ?? '',
+                        prompt_id: video?.prompt_id ?? ''
                     }));
                 } else {
                     this.videoResults = [];
@@ -368,6 +395,7 @@ createApp({
                 if (this.videoResults.length === 0) {
                     this.videoError = 'Video generation finished but no video was returned.';
                 } else {
+                    this.lastVideoPrompt = prompt;
                     this.previewMode = 'video';
                 }
             } catch (error) {
@@ -376,6 +404,109 @@ createApp({
             } finally {
                 this.isGeneratingVideo = false;
             }
+        },
+        async extendVideo(video, index) {
+            if (this.isGeneratingVideo || this.isExtendingVideo) {
+                return;
+            }
+            const baseVideo = video || this.videoResults?.[index];
+            if (!baseVideo) {
+                this.videoError = 'No video available to extend.';
+                return;
+            }
+            if (!this.canExtendVideo(baseVideo)) {
+                this.videoError = 'This video cannot be extended.';
+                return;
+            }
+
+            const prompt = (this.lastVideoPrompt || this.videoPrompt || '').trim();
+            if (!prompt) {
+                this.videoError = 'Please provide a prompt before extending the video.';
+                return;
+            }
+
+            const identifier = this.getVideoIdentifier(baseVideo, index);
+            this.isExtendingVideo = true;
+            this.extendingVideoId = identifier;
+            this.videoError = null;
+
+            try {
+                const response = await fetch('/api/video/extend', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt,
+                        video: {
+                            filename: baseVideo.filename,
+                            subfolder: baseVideo.subfolder || '',
+                            type: baseVideo.type || 'output',
+                            local_path: baseVideo.local_path || '',
+                            prompt_id: baseVideo.prompt_id || ''
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to extend the video');
+                }
+
+                const baseRecord = this.normalizeVideoRecord(data.base_video) || baseVideo;
+                const extendedRecord = this.normalizeVideoRecord(data.extended_video);
+                const mergedRecord = this.normalizeVideoRecord(data.merged_video);
+
+                if (index >= 0 && index < this.videoResults.length) {
+                    this.videoResults.splice(index, 1, baseRecord);
+                }
+
+                let insertIndex = index >= 0 ? index + 1 : this.videoResults.length;
+                if (extendedRecord) {
+                    this.videoResults.splice(insertIndex, 0, extendedRecord);
+                    insertIndex += 1;
+                }
+                if (mergedRecord) {
+                    this.videoResults.splice(insertIndex, 0, mergedRecord);
+                }
+
+                this.lastVideoPrompt = prompt;
+                this.previewMode = 'video';
+            } catch (error) {
+                console.error('Error extending video:', error);
+                this.videoError = error.message || 'Unexpected error extending video.';
+            } finally {
+                this.isExtendingVideo = false;
+                this.extendingVideoId = null;
+            }
+        },
+        canExtendVideo(video) {
+            if (!video) {
+                return false;
+            }
+            const type = (video.type || '').toLowerCase();
+            if (type !== 'local') {
+                return false;
+            }
+            return Boolean(video.local_path || video.filename);
+        },
+        getVideoIdentifier(video, index) {
+            return video?.filename || video?.local_path || `video-${index}`;
+        },
+        normalizeVideoRecord(record) {
+            if (!record) {
+                return null;
+            }
+            return {
+                filename: record.filename || '',
+                subfolder: record.subfolder || '',
+                type: record.type || 'output',
+                format: record.format || 'mp4',
+                local_path: record.local_path || '',
+                prompt_id: record.prompt_id || '',
+                mime_type: record.mime_type || '',
+                size: record.size ?? null
+            };
         }
     }
 }).mount('#video-app');

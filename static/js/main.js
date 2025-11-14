@@ -21,6 +21,7 @@ createApp({
             currentInput: '',
             selectedResolution: '960x960',
             selectedSteps: 20, // Pasos de inferencia por defecto
+            selectedModel: 'lumina', // Modelo seleccionado (lumina/chroma)
             generationMode: 'generate', // Modo de generación (generate/edit)
             isGenerating: false,
             modalImage: null,
@@ -41,7 +42,11 @@ createApp({
             tagsVisible: true, // Control de visibilidad de los tags
             isUploadingImage: false, // Estado de carga de imágenes en modo edición
             showSettingsModal: false,
-            settingsEndpoint: '',
+            settingsEndpoints: {
+                generate: '',
+                edit: '',
+                video: ''
+            },
             isSavingSettings: false,
             settingsError: '',
             settingsSaved: false,
@@ -100,7 +105,8 @@ createApp({
         },
         modalImageUrl() {
             if (!this.modalImage) return '';
-            return `/api/image/${this.modalImage.filename}?subfolder=${this.modalImage.subfolder || ''}&type=${this.modalImage.type || 'output'}`;
+            // Use getMediaUrl to properly handle local images
+            return this.getMediaUrl(this.modalImage);
         },
     },
     mounted() {
@@ -214,14 +220,16 @@ createApp({
                 const data = await response.json();
                 if (response.ok && data.success) {
                     if (!this.settingsDirty) {
-                        this.settingsEndpoint = data.url || '';
+                        this.settingsEndpoints.generate = data.generate || data.url || '';
+                        this.settingsEndpoints.edit = data.edit || '';
+                        this.settingsEndpoints.video = data.video || '';
                     }
                 } else {
-                    this.settingsError = data.error || 'Unable to load ComfyUI endpoint.';
+                    this.settingsError = data.error || 'Unable to load ComfyUI endpoints.';
                 }
             } catch (error) {
-                console.error('Error loading ComfyUI endpoint:', error);
-                this.settingsError = 'Unexpected error loading endpoint.';
+                console.error('Error loading ComfyUI endpoints:', error);
+                this.settingsError = 'Unexpected error loading endpoints.';
             }
         },
         handleSettingsInput() {
@@ -229,34 +237,39 @@ createApp({
             this.settingsSaved = false;
         },
         async saveSettings() {
-            if (!this.settingsEndpoint || !this.settingsEndpoint.trim()) {
-                this.settingsError = 'Endpoint URL is required.';
-                this.settingsSaved = false;
-                return;
-            }
-
             this.isSavingSettings = true;
             this.settingsError = '';
             this.settingsSaved = false;
 
             try {
+                // Enviar todos los valores, incluso si están vacíos
+                const payload = {
+                    generate: (this.settingsEndpoints.generate || '').trim(),
+                    edit: (this.settingsEndpoints.edit || '').trim(),
+                    video: (this.settingsEndpoints.video || '').trim()
+                };
+
                 const response = await fetch('/api/settings/comfy-endpoint', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: this.settingsEndpoint.trim() })
+                    body: JSON.stringify(payload)
                 });
                 const data = await response.json();
                 if (response.ok && data.success) {
                     this.settingsSaved = true;
                     this.settingsDirty = false;
+                    // Actualizar los valores con los que retornó el servidor
+                    if (data.generate) this.settingsEndpoints.generate = data.generate;
+                    if (data.edit) this.settingsEndpoints.edit = data.edit;
+                    if (data.video) this.settingsEndpoints.video = data.video;
                 } else {
-                    this.settingsError = data.error || 'Unable to update endpoint.';
+                    this.settingsError = data.error || 'Unable to update endpoints.';
                 }
             } catch (error) {
-                console.error('Error saving ComfyUI endpoint:', error);
-                this.settingsError = 'Unexpected error updating endpoint.';
+                console.error('Error saving ComfyUI endpoints:', error);
+                this.settingsError = 'Unexpected error updating endpoints.';
             } finally {
                 this.isSavingSettings = false;
             }
@@ -634,6 +647,7 @@ createApp({
                         steps: steps,
                         seed: seedToUse,
                         mode: this.generationMode,
+                        model: this.generationMode === 'generate' ? this.selectedModel : null,
                         image: lastImagePayload
                     })
                 });
@@ -745,7 +759,11 @@ createApp({
             }
             const mediaType = (media.type || '').toLowerCase();
             if (mediaType === 'local') {
-                return `/api/image/${media.filename}?type=local`;
+                const params = new URLSearchParams({ type: 'local' });
+                if (media.local_path) {
+                    params.append('local_path', media.local_path);
+                }
+                return `/api/image/${media.filename}?${params.toString()}`;
             }
             const subfolder = media.subfolder || '';
             const type = media.type || 'output';

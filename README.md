@@ -1,6 +1,6 @@
 ### IMPORTANT ALL THIS PROJECT WAS VIBE CODING
 
-# Anime Generator - RunPod Template
+# AI Content Creator
 
 A powerful web application for iterative anime image generation using ComfyUI. This application provides an intuitive interface for creating anime-style images through an interactive step-by-step process or direct prompt generation.
 
@@ -147,7 +147,7 @@ Enable the AI enrichment toggle to automatically enhance your prompts using Open
 
 ```
 .
-├── anime_generator.py      # Main Flask application
+├── app.py                  # Main Flask application entry point
 ├── entrypoint.sh           # Container startup script
 ├── Dockerfile              # Docker image definition
 ├── requirements.txt        # Python dependencies
@@ -164,7 +164,7 @@ Enable the AI enrichment toggle to automatically enhance your prompts using Open
 │   └── tags.csv            # Tag database (800,000+ tags)
 └── workflows/
     └── text-to-image/
-        └── text-to-image-illustrious.json  # ComfyUI workflow
+        └── text-to-image-lumina.json  # ComfyUI workflow
 ```
 
 ## 🔧 Technical Details

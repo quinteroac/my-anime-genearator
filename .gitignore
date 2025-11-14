@@ -50,6 +50,8 @@ output/
 # Datos sensibles generados en runtime
 data/totp_secrets.json
 
+# Configuraciones default (contiene endpoints sensibles)
+defaults.json
 
 # GitHub Actions Runner
 _runner/

@@ -5,3 +5,109 @@ version = 1
 - All newly added code must use English identifiers and strings unless interacting with external APIs that require another language.
 - Do not add icons or emoji to the comments of the code in order to avoid encoding issues.
 
+[project_structure]
+- The application follows a modular domain-driven architecture with clear separation of concerns.
+- Main application entry point: app.py
+- Configuration: config.py (environment variables, constants, directory paths)
+- Authentication: auth.py (authentication utilities and decorators)
+
+[directory_structure]
+- domains/ - Business logic organized by domain
+  - generate.py - Image generation domain (text-to-image)
+  - edit.py - Image editing domain
+  - video.py - Video generation domain (image-to-video)
+  
+- routes/ - Flask route handlers organized by feature
+  - auth.py - Authentication routes (login, OAuth, 2FA)
+  - generate.py - Image generation routes
+  - video.py - Video generation and extension routes
+  - api.py - General API routes (tags, settings, upload, image serving, OpenAI integration)
+  
+- utils/ - Shared utility functions
+  - comfy_config.py - ComfyUI URL configuration and management
+  - comfy.py - ComfyUI API integration (queue_prompt, get_media_outputs, wait_for_completion)
+  - media.py - Media handling (upload, download, persist, resolve paths)
+  - video_utils.py - Video processing utilities (ffmpeg, frame extraction, video merging)
+  - workflow.py - Workflow management (load_workflow, find_save_image_nodes)
+
+[code_organization_rules]
+- When adding new features:
+  1. Domain logic goes in domains/ (e.g., domains/new_feature.py)
+  2. Route handlers go in routes/ (e.g., routes/new_feature.py)
+  3. Shared utilities go in utils/ (e.g., utils/new_utility.py)
+  4. Configuration changes go in config.py
+  5. Authentication changes go in auth.py
+  
+- When modifying existing features:
+  1. Keep domain logic separate from route handlers
+  2. Use blueprints for route organization
+  3. Import utilities from utils/ rather than duplicating code
+  4. Maintain separation between domains (generate, edit, video)
+  
+- Import conventions:
+  - Domain modules import from utils/ and config
+  - Route modules import from domains/ and utils/
+  - app.py imports and registers all blueprints
+  - Avoid circular dependencies between modules
+  
+- File naming:
+  - Use snake_case for all Python files
+  - Domain files: descriptive name (generate.py, edit.py, video.py)
+  - Route files: match domain names when possible
+  - Utility files: descriptive name indicating purpose
+
+[static_content_structure]
+- static/ - Static files served by Flask
+  - css/ - Stylesheets organized by functionality
+    - style.css - Main application styles (shared/common styles)
+    - image.css - Image generation page specific styles
+    - video.css - Video generation page specific styles
+  - js/ - JavaScript files organized by functionality
+    - main.js - Main application JavaScript (image generation interface)
+    - video.js - Video generation page specific JavaScript
+
+- templates/ - Jinja2 HTML templates
+  - index.html - Main application page (image generation)
+  - video.html - Video generation page
+  - login.html - Authentication login page
+  - two_factor_setup.html - 2FA setup page
+  - two_factor_verify.html - 2FA verification page
+
+[static_content_rules]
+- When adding new static content:
+  1. CSS files: Create domain-specific CSS files in static/css/ (e.g., edit.css for edit page)
+  2. JavaScript files: Create domain-specific JS files in static/js/ (e.g., edit.js for edit page)
+  3. Templates: Create HTML templates in templates/ matching route names when possible
+  4. Keep shared/common styles in style.css
+  5. Keep shared/common JavaScript in main.js or create a shared.js if needed
+  
+- CSS organization:
+  - Use style.css for global/shared styles (layout, typography, common components)
+  - Use domain-specific CSS files for page-specific styles (image.css, video.css, etc.)
+  - Follow BEM or similar naming convention for CSS classes
+  - Use CSS variables for colors, spacing, and other design tokens
+  
+- JavaScript organization:
+  - Use main.js for image generation interface logic
+  - Use domain-specific JS files for page-specific functionality
+  - Keep shared utilities in main.js or a separate utils.js if it grows large
+  - Use modern JavaScript (ES6+) features
+  - Avoid global variables, use modules or namespaces
+  
+- Template organization:
+  - Templates should match route names when possible (e.g., video.html for /video route)
+  - Use Jinja2 template inheritance with base templates if needed
+  - Keep templates focused on presentation, minimal logic
+  - Pass data from routes to templates via render_template()
+  
+- File naming conventions:
+  - CSS files: lowercase with hyphens or underscores (style.css, image.css, video.css)
+  - JavaScript files: lowercase with hyphens or underscores (main.js, video.js)
+  - Template files: lowercase with underscores (index.html, video.html, two_factor_setup.html)
+  
+- Asset references:
+  - Use Flask's url_for('static', filename='...') for static assets in templates
+  - Reference CSS files in <link> tags in HTML head
+  - Reference JavaScript files in <script> tags before closing </body> tag
+  - Keep asset paths relative to static/ directory
+

@@ -1,0 +1,35 @@
+{
+  "comfyui": {
+    "endpoints": {
+      "generate": "https://your-comfyui-generate-endpoint.com/",
+      "edit": "https://your-comfyui-edit-endpoint.com/",
+      "video": "https://your-comfyui-video-endpoint.com/"
+    },
+    "host": "127.0.0.1",
+    "port": 8188,
+    "ws_protocol": "ws"
+  },
+  "flask": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "secret_key": null,
+    "preferred_url_scheme": "https"
+  },
+  "workflows": {
+    "generate": "workflows/text-to-image/text-to-image-lumina.json",
+    "edit": "workflows/edit-image/edit-image-qwen-2509.json",
+    "video": "workflows/image-to-video/video_wan2_2_14B_i2v_remix_sound.json"
+  },
+  "auth": {
+    "totp_issuer": "Anime Generator",
+    "enable_oauth_login": false
+  },
+  "directories": {
+    "data": "data",
+    "logs": "logs",
+    "output": "output",
+    "output_images": "output/images",
+    "output_videos": "output/videos"
+  }
+}
+

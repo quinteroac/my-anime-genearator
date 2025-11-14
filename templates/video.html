@@ -89,13 +89,28 @@
                                     playsinline
                                     preload="metadata"
                                 ></video>
-                                <a 
-                                    :href="getVideoUrl(video) + '&download=1'"
-                                    class="video-download-btn"
-                                    :download="video.filename || `generated-video-${index}.mp4`"
-                                >
-                                    Download
-                                </a>
+                                <div class="video-result-actions">
+                                    <a 
+                                        :href="getVideoUrl(video) + '&download=1'"
+                                        class="video-download-btn"
+                                        :download="video.filename || `generated-video-${index}.mp4`"
+                                    >
+                                        Download
+                                    </a>
+                                    <button
+                                        type="button"
+                                        class="video-extend-btn"
+                                        @click="extendVideo(video, index)"
+                                        :disabled="isGeneratingVideo || isExtendingVideo || !canExtendVideo(video)"
+                                    >
+                                        <span v-if="isExtendingVideo && extendingVideoId === getVideoIdentifier(video, index)">
+                                            Extending...
+                                        </span>
+                                        <span v-else>
+                                            Extend
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <p v-else class="video-placeholder">Generate a video to see results here.</p>
@@ -158,18 +173,41 @@
         <div v-if="showSettingsModal" class="settings-modal-backdrop" @click.self="closeSettings">
             <div class="settings-modal">
                 <h2 class="settings-title">Settings</h2>
-                <label class="settings-label" for="video-settings-comfy-endpoint">ComfyUI Endpoint</label>
-                <input
-                    id="video-settings-comfy-endpoint"
-                    class="settings-input"
-                    type="text"
-                    v-model="settingsEndpoint"
-                    @input="handleSettingsInput"
-                    placeholder="https://your-comfy-endpoint:8188"
-                    :disabled="isSavingSettings"
-                />
+                <div class="settings-section">
+                    <h3 class="settings-section-title">ComfyUI Endpoints</h3>
+                    <label class="settings-label" for="video-settings-comfy-endpoint-generate">Generate Endpoint</label>
+                    <input
+                        id="video-settings-comfy-endpoint-generate"
+                        class="settings-input"
+                        type="text"
+                        v-model="settingsEndpoints.generate"
+                        @input="handleSettingsInput"
+                        placeholder="http://localhost:8188"
+                        :disabled="isSavingSettings"
+                    />
+                    <label class="settings-label" for="video-settings-comfy-endpoint-edit">Edit Endpoint</label>
+                    <input
+                        id="video-settings-comfy-endpoint-edit"
+                        class="settings-input"
+                        type="text"
+                        v-model="settingsEndpoints.edit"
+                        @input="handleSettingsInput"
+                        placeholder="http://localhost:8189"
+                        :disabled="isSavingSettings"
+                    />
+                    <label class="settings-label" for="video-settings-comfy-endpoint-video">Video Endpoint</label>
+                    <input
+                        id="video-settings-comfy-endpoint-video"
+                        class="settings-input"
+                        type="text"
+                        v-model="settingsEndpoints.video"
+                        @input="handleSettingsInput"
+                        placeholder="http://localhost:8190"
+                        :disabled="isSavingSettings"
+                    />
+                </div>
                 <p v-if="settingsError" class="settings-feedback settings-error">{{ settingsError }}</p>
-                <p v-if="settingsSaved" class="settings-feedback settings-success">Endpoint updated successfully.</p>
+                <p v-if="settingsSaved" class="settings-feedback settings-success">Endpoints updated successfully.</p>
                 <div class="settings-actions">
                     <button class="settings-button secondary" type="button" @click="closeSettings" :disabled="isSavingSettings">Cancel</button>
                     <button class="settings-button primary" type="button" @click="saveSettings" :disabled="isSavingSettings">
