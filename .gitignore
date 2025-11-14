@@ -52,6 +52,7 @@ data/totp_secrets.json
 
 # Configuraciones default (contiene endpoints sensibles)
 defaults.json
+experiments/
 
 # GitHub Actions Runner
 _runner/
