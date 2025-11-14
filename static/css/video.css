@@ -196,6 +196,38 @@
     cursor: not-allowed;
 }
 
+.video-drive-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 8px 14px;
+    color: #e0e0e0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.video-drive-upload-btn:hover:not(:disabled) {
+    border-color: #ffffff;
+    color: #ffffff;
+    box-shadow: 0 0 0 1px #ffffff;
+}
+
+.video-drive-upload-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.video-drive-upload-btn .icon {
+    width: 16px;
+    height: 16px;
+}
+
 .video-input-group {
     padding-bottom: 70px;
 }

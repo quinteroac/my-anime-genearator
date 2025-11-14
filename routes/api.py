@@ -12,9 +12,10 @@ from flask import Blueprint, request, jsonify, send_file, Response
 from werkzeug.utils import secure_filename
 from utils.comfy_config import get_comfy_url, update_comfy_endpoint, get_all_endpoints
 from utils.media import resolve_local_media_path, upload_image_data_url_to_comfy, upload_image_bytes_to_comfy
+from utils.google_drive import get_authorization_url, exchange_code_for_credentials, get_drive_service, upload_file_to_drive
 from auth import api_login_required
 from urllib.parse import urlparse
-from config import SCRIPT_DIR
+from config import SCRIPT_DIR, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_MODEL, PREFERRED_URL_SCHEME
 
 # Cache de tags en memoria
 TAGS_CACHE = {}
@@ -321,10 +322,11 @@ def create_api_blueprint(app):
             if not tags_prompt:
                 return jsonify({"success": False, "error": "Empty prompt"}), 400
             
-            openai_api_key = os.environ.get('OPENAI_API_KEY')
-            print(f"[DEBUG] OPENAI_API_KEY exists: {bool(openai_api_key)}, length: {len(openai_api_key) if openai_api_key else 0}")
-            if not openai_api_key:
+            if not OPENAI_API_KEY:
+                print(f"[DEBUG] OPENAI_API_KEY not configured")
                 return jsonify({"success": False, "error": "OPENAI_API_KEY not configured"}), 500
+            
+            print(f"[DEBUG] OPENAI_API_KEY exists: {bool(OPENAI_API_KEY)}, length: {len(OPENAI_API_KEY) if OPENAI_API_KEY else 0}")
             
             system_prompt = (
                 "You are an expert AI art prompt engineer. I will provide you with a prompt composed of danbooru tags and other AI art tags. "
@@ -337,11 +339,11 @@ def create_api_blueprint(app):
             
             headers = {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {openai_api_key}"
+                "Authorization": f"Bearer {OPENAI_API_KEY}"
             }
             
             payload = {
-                "model": "gpt-4o",
+                "model": OPENAI_MODEL,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Convert the following tag-based prompt to natural language:\n\n{tags_prompt}"}
@@ -350,9 +352,10 @@ def create_api_blueprint(app):
                 "max_tokens": 800
             }
             
-            print(f"[DEBUG] Calling OpenAI API to convert tags to natural language")
+            api_url = f"{OPENAI_API_BASE.rstrip('/')}/chat/completions"
+            print(f"[DEBUG] Calling OpenAI API to convert tags to natural language with model: {OPENAI_MODEL} at {api_url}")
             response = requests.post(
-                "https://api.openai.com/v1/chat/completions",
+                api_url,
                 headers=headers,
                 json=payload,
                 timeout=30
@@ -396,10 +399,11 @@ def create_api_blueprint(app):
             if not user_prompt:
                 return jsonify({"success": False, "error": "Empty prompt"}), 400
             
-            openai_api_key = os.environ.get('OPENAI_API_KEY')
-            print(f"[DEBUG] OPENAI_API_KEY exists: {bool(openai_api_key)}, length: {len(openai_api_key) if openai_api_key else 0}")
-            if not openai_api_key:
+            if not OPENAI_API_KEY:
+                print(f"[DEBUG] OPENAI_API_KEY not configured")
                 return jsonify({"success": False, "error": "OPENAI_API_KEY not configured"}), 500
+            
+            print(f"[DEBUG] OPENAI_API_KEY exists: {bool(OPENAI_API_KEY)}, length: {len(OPENAI_API_KEY) if OPENAI_API_KEY else 0}")
             
             system_prompt = (
                 f"You are an artist who excels at creating AI paintings using the Lumina model and can craft high-quality Lumina prompts. "
@@ -411,11 +415,11 @@ def create_api_blueprint(app):
             
             headers = {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {openai_api_key}"
+                "Authorization": f"Bearer {OPENAI_API_KEY}"
             }
             
             payload = {
-                "model": "gpt-4o",
+                "model": OPENAI_MODEL,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -424,9 +428,10 @@ def create_api_blueprint(app):
                 "max_tokens": 500
             }
             
-            print(f"[DEBUG] Calling OpenAI API with model: gpt-4o")
+            api_url = f"{OPENAI_API_BASE.rstrip('/')}/chat/completions"
+            print(f"[DEBUG] Calling OpenAI API with model: {OPENAI_MODEL} at {api_url}")
             response = requests.post(
-                "https://api.openai.com/v1/chat/completions",
+                api_url,
                 headers=headers,
                 json=payload,
                 timeout=30
@@ -491,6 +496,227 @@ def create_api_blueprint(app):
             })
         except Exception as e:
             traceback.print_exc()
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    @api_bp.route('/api/drive/authorize', methods=['GET'])
+    @api_login_required(app)
+    def api_drive_authorize():
+        """Obtener URL de autorización para Google Drive"""
+        try:
+            if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+                return jsonify({
+                    "success": False,
+                    "error": "Google Drive is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."
+                }), 503
+            
+            # Construir redirect URI usando el esquema preferido
+            from flask import url_for
+            # Si es localhost, forzar http; de lo contrario usar el esquema preferido
+            host = request.host
+            if 'localhost' in host or '127.0.0.1' in host:
+                scheme = 'http'
+            else:
+                scheme = PREFERRED_URL_SCHEME or request.scheme
+            
+            redirect_uri = url_for('api.api_drive_callback', _external=True, _scheme=scheme)
+            
+            print(f"[GOOGLE_DRIVE] Host: {host}")
+            print(f"[GOOGLE_DRIVE] Scheme: {scheme}")
+            print(f"[GOOGLE_DRIVE] Redirect URI: {redirect_uri}")
+            print(f"[GOOGLE_DRIVE] Client ID: {GOOGLE_CLIENT_ID}")
+            print(f"[GOOGLE_DRIVE] Make sure this exact URI is registered in Google Cloud Console")
+            
+            authorization_url, state = get_authorization_url(
+                redirect_uri=redirect_uri,
+                client_id=GOOGLE_CLIENT_ID,
+                client_secret=GOOGLE_CLIENT_SECRET
+            )
+            
+            if not authorization_url:
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to generate authorization URL. Check server logs for details."
+                }), 500
+            
+            from flask import session
+            session['drive_oauth_state'] = state
+            
+            return jsonify({
+                "success": True,
+                "authorization_url": authorization_url,
+                "redirect_uri": redirect_uri  # Incluir para debugging
+            })
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    @api_bp.route('/api/drive/callback', methods=['GET'])
+    @api_login_required(app)
+    def api_drive_callback():
+        """Callback de autorización de Google Drive"""
+        try:
+            from flask import session, redirect, url_for
+            code = request.args.get('code')
+            state = request.args.get('state')
+            
+            if not code:
+                return jsonify({
+                    "success": False,
+                    "error": "Authorization code not provided"
+                }), 400
+            
+            if state != session.get('drive_oauth_state'):
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid state parameter"
+                }), 400
+            
+            # Construir redirect URI usando el mismo método que en authorize
+            host = request.host
+            if 'localhost' in host or '127.0.0.1' in host:
+                scheme = 'http'
+            else:
+                scheme = PREFERRED_URL_SCHEME or request.scheme
+            
+            redirect_uri = url_for('api.api_drive_callback', _external=True, _scheme=scheme)
+            
+            print(f"[GOOGLE_DRIVE] Callback - Host: {host}, Scheme: {scheme}")
+            print(f"[GOOGLE_DRIVE] Callback redirect URI: {redirect_uri}")
+            
+            credentials = exchange_code_for_credentials(
+                code=code,
+                redirect_uri=redirect_uri,
+                client_id=GOOGLE_CLIENT_ID,
+                client_secret=GOOGLE_CLIENT_SECRET
+            )
+            
+            if not credentials:
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to exchange authorization code"
+                }), 500
+            
+            # Guardar credenciales en la sesión
+            session['drive_credentials'] = credentials
+            session.pop('drive_oauth_state', None)
+            
+            # Redirigir a la página principal con mensaje de éxito
+            return redirect('/?drive_auth=success')
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    @api_bp.route('/api/drive/upload', methods=['POST'])
+    @api_login_required(app)
+    def api_drive_upload():
+        """Subir un archivo a Google Drive"""
+        try:
+            from flask import session
+            data = request.get_json()
+            
+            # Verificar credenciales
+            credentials = session.get('drive_credentials')
+            if not credentials:
+                return jsonify({
+                    "success": False,
+                    "error": "Not authenticated with Google Drive. Please authorize first.",
+                    "requires_auth": True
+                }), 401
+            
+            # Obtener información del archivo
+            file_url = data.get('file_url')
+            filename = data.get('filename', 'uploaded_file')
+            mime_type = data.get('mime_type', 'application/octet-stream')
+            folder_id = data.get('folder_id')  # Opcional
+            
+            if not file_url:
+                return jsonify({
+                    "success": False,
+                    "error": "file_url is required"
+                }), 400
+            
+            # Descargar el archivo
+            # Si es un data URL, decodificarlo directamente
+            if file_url.startswith('data:'):
+                import base64
+                try:
+                    header, encoded = file_url.split(',', 1)
+                    file_content = base64.b64decode(encoded)
+                except Exception as e:
+                    return jsonify({
+                        "success": False,
+                        "error": f"Failed to decode data URL: {str(e)}"
+                    }), 400
+            else:
+                # Si es una URL normal, descargarla
+                response = requests.get(file_url, stream=True)
+                if response.status_code != 200:
+                    return jsonify({
+                        "success": False,
+                        "error": f"Failed to download file: HTTP {response.status_code}"
+                    }), 500
+                
+                file_content = response.content
+            
+            # Crear servicio de Drive
+            service = get_drive_service(credentials)
+            if not service:
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to create Google Drive service",
+                    "requires_auth": True
+                }), 500
+            
+            # Subir archivo
+            result = upload_file_to_drive(
+                service=service,
+                file_content=file_content,
+                filename=filename,
+                mime_type=mime_type,
+                folder_id=folder_id
+            )
+            
+            if result.get('success'):
+                return jsonify({
+                    "success": True,
+                    "file_id": result.get('file_id'),
+                    "file_name": result.get('file_name'),
+                    "web_view_link": result.get('web_view_link')
+                })
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": result.get('error', 'Unknown error')
+                }), 500
+                
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    @api_bp.route('/api/drive/status', methods=['GET'])
+    @api_login_required(app)
+    def api_drive_status():
+        """Verificar estado de autenticación con Google Drive"""
+        try:
+            from flask import session
+            credentials = session.get('drive_credentials')
+            return jsonify({
+                "success": True,
+                "authenticated": credentials is not None
+            })
+        except Exception as e:
             return jsonify({
                 "success": False,
                 "error": str(e)

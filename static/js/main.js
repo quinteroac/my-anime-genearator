@@ -50,7 +50,9 @@ createApp({
             isSavingSettings: false,
             settingsError: '',
             settingsSaved: false,
-            settingsDirty: false
+            settingsDirty: false,
+            driveAuthenticated: false,
+            isUploadingToDrive: false
         };
     },
     computed: {
@@ -141,6 +143,15 @@ createApp({
         });
 
         this.fetchComfyEndpoint();
+        this.checkDriveStatus();
+        
+        // Verificar si viene de autorización exitosa de Drive
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('drive_auth') === 'success') {
+            this.checkDriveStatus();
+            // Limpiar el parámetro de la URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
     },
     watch: {
         chatMessages: {
@@ -955,6 +966,94 @@ createApp({
         
         closeModal() {
             this.modalImage = null;
+        },
+        
+        async checkDriveStatus() {
+            try {
+                const response = await fetch('/api/drive/status');
+                const data = await response.json();
+                if (data.success) {
+                    this.driveAuthenticated = data.authenticated;
+                }
+            } catch (error) {
+                console.error('Error checking Drive status:', error);
+            }
+        },
+        
+        async authorizeDrive() {
+            try {
+                const response = await fetch('/api/drive/authorize');
+                const data = await response.json();
+                if (data.success && data.authorization_url) {
+                    window.location.href = data.authorization_url;
+                } else {
+                    alert('Failed to authorize Google Drive: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error authorizing Drive:', error);
+                alert('Error authorizing Google Drive: ' + error.message);
+            }
+        },
+        
+        async uploadToDrive(image) {
+            if (this.isUploadingToDrive) {
+                return;
+            }
+            
+            // Verificar autenticación
+            if (!this.driveAuthenticated) {
+                if (confirm('You need to authorize Google Drive first. Authorize now?')) {
+                    await this.authorizeDrive();
+                }
+                return;
+            }
+            
+            this.isUploadingToDrive = true;
+            try {
+                // Obtener URL del archivo
+                let fileUrl;
+                if (image.dataUrl) {
+                    // Si tiene dataUrl, usarlo directamente (el backend lo manejará)
+                    fileUrl = image.dataUrl;
+                } else {
+                    fileUrl = this.getImageUrl(image);
+                }
+                
+                const filename = image.filename || 'generated_image.png';
+                const mimeType = image.mimeType || 'image/png';
+                
+                const uploadResponse = await fetch('/api/drive/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        file_url: fileUrl,
+                        filename: filename,
+                        mime_type: mimeType
+                    })
+                });
+                
+                const uploadData = await uploadResponse.json();
+                
+                if (uploadData.success) {
+                    alert(`File uploaded successfully to Google Drive!\n\nView: ${uploadData.web_view_link}`);
+                } else {
+                    if (uploadData.requires_auth) {
+                        this.driveAuthenticated = false;
+                        if (confirm('Authentication expired. Re-authorize Google Drive?')) {
+                            await this.authorizeDrive();
+                        }
+                    } else {
+                        alert('Failed to upload to Google Drive: ' + (uploadData.error || 'Unknown error'));
+                    }
+                }
+            } catch (error) {
+                console.error('Error uploading to Drive:', error);
+                alert('Error uploading to Google Drive: ' + error.message);
+            } finally {
+                this.isUploadingToDrive = false;
+            }
         },
         
         async loadTagsForStep(categoryName) {

@@ -89,6 +89,7 @@ createApp({
             videoError: null,
             previewMode: 'image',
             enableNSFW: false,
+            enableNoSound: false,
             showSettingsModal: false,
             settingsEndpoints: {
                 generate: '',
@@ -98,7 +99,9 @@ createApp({
             settingsError: '',
             settingsSaved: false,
             isSavingSettings: false,
-            settingsDirty: false
+            settingsDirty: false,
+            driveAuthenticated: false,
+            isUploadingToDrive: false
         };
     },
     computed: {
@@ -177,6 +180,7 @@ createApp({
         });
 
         this.fetchComfyEndpoint();
+        this.checkDriveStatus();
     },
     methods: {
         openSettings() {
@@ -285,6 +289,86 @@ createApp({
             }
             return `/api/image/${media.filename}?${params.toString()}`;
         },
+        
+        async checkDriveStatus() {
+            try {
+                const response = await fetch('/api/drive/status');
+                const data = await response.json();
+                if (data.success) {
+                    this.driveAuthenticated = data.authenticated;
+                }
+            } catch (error) {
+                console.error('Error checking Drive status:', error);
+            }
+        },
+        
+        async authorizeDrive() {
+            try {
+                const response = await fetch('/api/drive/authorize');
+                const data = await response.json();
+                if (data.success && data.authorization_url) {
+                    window.location.href = data.authorization_url;
+                } else {
+                    alert('Failed to authorize Google Drive: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error authorizing Drive:', error);
+                alert('Error authorizing Google Drive: ' + error.message);
+            }
+        },
+        
+        async uploadVideoToDrive(video) {
+            if (this.isUploadingToDrive) {
+                return;
+            }
+            
+            // Verificar autenticación
+            if (!this.driveAuthenticated) {
+                if (confirm('You need to authorize Google Drive first. Authorize now?')) {
+                    await this.authorizeDrive();
+                }
+                return;
+            }
+            
+            this.isUploadingToDrive = true;
+            try {
+                const fileUrl = this.getVideoUrl(video);
+                const filename = video.filename || 'generated_video.mp4';
+                const mimeType = video.mime_type || 'video/mp4';
+                
+                const uploadResponse = await fetch('/api/drive/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        file_url: fileUrl,
+                        filename: filename,
+                        mime_type: mimeType
+                    })
+                });
+                
+                const uploadData = await uploadResponse.json();
+                
+                if (uploadData.success) {
+                    alert(`Video uploaded successfully to Google Drive!\n\nView: ${uploadData.web_view_link}`);
+                } else {
+                    if (uploadData.requires_auth) {
+                        this.driveAuthenticated = false;
+                        if (confirm('Authentication expired. Re-authorize Google Drive?')) {
+                            await this.authorizeDrive();
+                        }
+                    } else {
+                        alert('Failed to upload to Google Drive: ' + (uploadData.error || 'Unknown error'));
+                    }
+                }
+            } catch (error) {
+                console.error('Error uploading to Drive:', error);
+                alert('Error uploading to Google Drive: ' + error.message);
+            } finally {
+                this.isUploadingToDrive = false;
+            }
+        },
         async generateVideo() {
             if (this.isGeneratingVideo) {
                 return;
@@ -372,7 +456,8 @@ createApp({
                         image: imagePayload,
                         width,
                         height,
-                        nsfw: this.enableNSFW
+                        nsfw: this.enableNSFW,
+                        no_sound: this.enableNoSound
                     })
                 });
 

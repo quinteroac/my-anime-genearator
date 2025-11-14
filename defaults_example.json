@@ -15,9 +15,14 @@
     "secret_key": null,
     "preferred_url_scheme": "https"
   },
+  "google": {
+    "client_id": "your-google-client-id.apps.googleusercontent.com",
+    "client_secret": "your-google-client-secret"
+  },
   "openai": {
     "api_key": null,
     "api_base": "https://api.openai.com/v1",
+    "model": "gpt-4o",
     "enable_enrichment": false
   },
   "civitai": {

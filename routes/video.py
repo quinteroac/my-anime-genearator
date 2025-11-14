@@ -72,6 +72,7 @@ def create_video_blueprint(app):
             length = data.get('length')
             fps = data.get('fps')
             nsfw = data.get('nsfw', False)
+            no_sound = data.get('no_sound', False)
 
             if width is not None:
                 try:
@@ -93,7 +94,8 @@ def create_video_blueprint(app):
                 negative_prompt=negative_prompt,
                 length=length,
                 fps=fps,
-                nsfw=nsfw
+                nsfw=nsfw,
+                no_sound=no_sound
             )
 
             return jsonify(result)

@@ -53,12 +53,21 @@ ALLOWED_USERS = [
 
 # Flask configuration
 FLASK_SECRET_KEY = os.urandom(24)
-GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID') or get_default('google.client_id')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET') or get_default('google.client_secret')
 PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME', get_default('flask.preferred_url_scheme', 'https'))
 ENABLE_OAUTH_LOGIN = (
     os.environ.get('ENABLE_OAUTH_LOGIN', '').strip().lower() or 
     str(get_default('auth.enable_oauth_login', False)).lower()
+) not in {'0', 'false', 'no', 'off', ''}
+
+# OpenAI configuration
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY') or get_default('openai.api_key')
+OPENAI_API_BASE = os.environ.get('OPENAI_API_BASE') or get_default('openai.api_base', 'https://api.openai.com/v1')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL') or get_default('openai.model', 'gpt-4o')
+ENABLE_OPENAI_ENRICHMENT = (
+    os.environ.get('ENABLE_OPENAI_ENRICHMENT', '').strip().lower() or 
+    str(get_default('openai.enable_enrichment', False)).lower()
 ) not in {'0', 'false', 'no', 'off', ''}
 
 # Application ports

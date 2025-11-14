@@ -8,15 +8,19 @@ from utils.comfy import queue_prompt, wait_for_completion
 from utils.media import persist_media_locally, upload_image_data_url_to_comfy, upload_local_media_to_comfy, upload_image_to_comfy
 from config import VIDEO_WORKFLOW_PATH
 
-def generate_video_from_image(positive_prompt, source_image, width=None, height=None, negative_prompt=None, length=None, fps=None, nsfw=False):
+def generate_video_from_image(positive_prompt, source_image, width=None, height=None, negative_prompt=None, length=None, fps=None, nsfw=False, no_sound=False):
     """Generar un video a partir de una imagen usando ComfyUI"""
-    # Seleccionar workflow según NSFW
+    # Seleccionar workflow según NSFW y no_sound
+    # NSFW tiene prioridad sobre no_sound
     if nsfw:
         workflow_path = 'workflows/image-to-video/video_wan2_2_14B_i2v_remix_sound_nsfw.json'
         print(f"[VIDEO] Using NSFW workflow: {workflow_path}")
+    elif no_sound:
+        workflow_path = 'workflows/image-to-video/video_wan2_2_14B_i2v_remix.json'
+        print(f"[VIDEO] Using no-sound workflow: {workflow_path}")
     else:
         workflow_path = 'workflows/image-to-video/video_wan2_2_14B_i2v_remix_sound.json'
-        print(f"[VIDEO] Using standard workflow: {workflow_path}")
+        print(f"[VIDEO] Using standard workflow with sound: {workflow_path}")
     
     workflow = load_workflow(VIDEO_WORKFLOW_PATH, workflow_path)
     if not workflow:
@@ -43,10 +47,12 @@ def generate_video_from_image(positive_prompt, source_image, width=None, height=
     if "93" in workflow:
         workflow["93"]["inputs"]["text"] = video_prompt
 
-    # Actualizar prompt de audio (nodo 115 - MMAudioSampler)
-    if audio_prompt and "115" in workflow:
+    # Actualizar prompt de audio (nodo 115 - MMAudioSampler) solo si el workflow tiene sonido
+    if audio_prompt and "115" in workflow and not no_sound:
         workflow["115"]["inputs"]["prompt"] = audio_prompt
         print(f"[VIDEO] Updated audio prompt in node 115")
+    elif no_sound:
+        print(f"[VIDEO] No-sound mode: skipping audio prompt update")
 
     # Actualizar negative prompt (nodo 89)
     if negative_prompt and "89" in workflow:
@@ -73,11 +79,18 @@ def generate_video_from_image(positive_prompt, source_image, width=None, height=
             except (ValueError, TypeError):
                 pass
 
-    # Actualizar fps en VideoCombine (nodo 110)
-    if fps is not None and "110" in workflow:
+    # Actualizar fps según el tipo de workflow
+    if fps is not None:
         try:
-            workflow["110"]["inputs"]["frame_rate"] = int(fps)
-        except (ValueError, TypeError):
+            # Workflow con sonido usa VHS_VideoCombine (nodo 110)
+            if "110" in workflow:
+                workflow["110"]["inputs"]["frame_rate"] = int(fps)
+                print(f"[VIDEO] Updated fps in VHS_VideoCombine (node 110): {fps}")
+            # Workflow sin sonido usa CreateVideo (nodo 94)
+            elif "94" in workflow:
+                workflow["94"]["inputs"]["fps"] = int(fps)
+                print(f"[VIDEO] Updated fps in CreateVideo (node 94): {fps}")
+        except (ValueError, TypeError, KeyError):
             pass
 
     # Subir imagen de entrada
@@ -201,10 +214,13 @@ def generate_video_from_image(positive_prompt, source_image, width=None, height=
     else:
         raise ValueError("No valid image source provided (data_url, local_path, or filename required)")
 
-    # Actualizar nodo LoadImage (nodo 117)
+    # Actualizar nodo LoadImage (puede ser 97 o 117 dependiendo del workflow)
     if "117" in workflow:
         workflow["117"]["inputs"]["image"] = upload_name
         print(f"[VIDEO] Updated LoadImage node 117 with: {upload_name}")
+    elif "97" in workflow:
+        workflow["97"]["inputs"]["image"] = upload_name
+        print(f"[VIDEO] Updated LoadImage node 97 with: {upload_name}")
 
     client_id = str(uuid.uuid4())
 
