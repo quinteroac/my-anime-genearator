@@ -14,7 +14,8 @@ from auth import login_required, is_authenticated
 from routes.auth import create_auth_blueprint
 from routes.generate import create_generate_blueprint
 from routes.video import create_video_blueprint
-from routes.api import create_api_blueprint, load_tags_cache
+from routes.api import create_api_blueprint
+from utils.db import init_db
 from utils.comfy_config import COMFYUI_URL_GENERATE, COMFYUI_URL_EDIT, COMFYUI_URL_VIDEO
 
 app = Flask(__name__)
@@ -75,7 +76,8 @@ def index():
 
 if __name__ == '__main__':
     # Cargar tags al iniciar la aplicación
-    load_tags_cache()
+    # Inicializar base de datos de tags
+    init_db()
     
     print(f"Iniciando Generador de Anime en {ANIME_GENERATOR_HOST}:{ANIME_GENERATOR_PORT}")
     print(f"Conectando a ComfyUI:")

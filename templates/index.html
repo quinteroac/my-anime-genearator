@@ -14,20 +14,32 @@
 <body>
     {% raw %}
     <div id="app">
-        <header class="top-bar top-bar--minimal">
-            <button class="header-icon-button" title="Settings" @click="openSettings">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M19.5 13.5a7.8 7.8 0 0 0 0-3l2-1.6-1.5-3-2.4.9a7.9 7.9 0 0 0-2.6-1.5L14.7 2h-3.4l-.3 3.3a7.9 7.9 0 0 0-2.6 1.5l-2.4-.9-1.5 3 2 1.6a7.8 7.8 0 0 0 0 3l-2 1.6 1.5 3 2.4-.9a7.9 7.9 0 0 0 2.6 1.5l.3 3.3h3.4l.3-3.3a7.9 7.9 0 0 0 2.6-1.5l2.4.9 1.5-3-2-1.6z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </button>
-            <a href="{{ url_for('logout') }}" class="logout-icon" title="Logout">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M12 19a7 7 0 110-14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </a>
+        <header class="main-header">
+            <div class="logo-section">
+                <div class="logo-icon-bg">
+                    <svg viewBox="0 0 24 24" class="logo-icon" fill="none" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                </div>
+                <span class="logo-text">AI Content Creator</span>
+            </div>
+            <div class="header-controls">
+                <button class="header-icon-button" title="Settings" @click="openSettings">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M19.5 13.5a7.8 7.8 0 0 0 0-3l2-1.6-1.5-3-2.4.9a7.9 7.9 0 0 0-2.6-1.5L14.7 2h-3.4l-.3 3.3a7.9 7.9 0 0 0-2.6 1.5l-2.4-.9-1.5 3 2 1.6a7.8 7.8 0 0 0 0 3l-2 1.6 1.5 3 2.4-.9a7.9 7.9 0 0 0 2.6 1.5l.3 3.3h3.4l.3-3.3a7.9 7.9 0 0 0 2.6-1.5l2.4.9 1.5-3-2-1.6z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <div class="header-divider"></div>
+                <a href="{{ url_for('logout') }}" class="logout-icon" title="Logout">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M12 19a7 7 0 110-14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </a>
+            </div>
         </header>
+        
         <!-- Progress indicator para modo interactivo (parte superior) -->
         <div v-if="promptMode === 'interactive' && currentStep >= 0 && currentStep < steps.length" class="step-indicator-top">
             <div class="step-progress-bar">
@@ -40,6 +52,24 @@
         </div>
         
         <div class="inner-container">
+            <!-- Hero Section (Empty State) -->
+            <div v-if="chatMessages.length === 0" class="hero-section">
+                <div class="hero-content">
+                    <h1 class="hero-title">What will you <span class="text-gradient">create</span> today?</h1>
+                    <p class="hero-subtitle">Enter a prompt to generate anime-style images.</p>
+                    <div class="hero-chips">
+                        <button class="hero-chip" @click="currentInput = 'Cyberpunk City, neon lights, rain'; directPrompt = 'Cyberpunk City, neon lights, rain'">
+                            <span class="chip-icon">🏙️</span> Cyberpunk City
+                        </button>
+                        <button class="hero-chip" @click="currentInput = 'Magical Girl, casting spell, sparkles'; directPrompt = 'Magical Girl, casting spell, sparkles'">
+                            <span class="chip-icon">✨</span> Magical Girl
+                        </button>
+                        <button class="hero-chip" @click="currentInput = 'Space Station, futuristic, stars'; directPrompt = 'Space Station, futuristic, stars'">
+                            <span class="chip-icon">🚀</span> Space Station
+                        </button>
+                    </div>
+                </div>
+            </div>
             <div class="images-container">
                 <div 
                     v-for="message in chatMessages" 

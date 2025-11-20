@@ -17,53 +17,8 @@ from auth import api_login_required
 from urllib.parse import urlparse
 from config import SCRIPT_DIR, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_MODEL, PREFERRED_URL_SCHEME
 
-# Cache de tags en memoria
-TAGS_CACHE = {}
-TAGS_CACHE_LOADED = False
-
-def load_tags_cache():
-    """Cargar todos los tags en memoria organizados por categoría"""
-    global TAGS_CACHE, TAGS_CACHE_LOADED
-    
-    if TAGS_CACHE_LOADED:
-        return
-    
-    csv_path = os.path.join(SCRIPT_DIR, 'data', 'tags.csv')
-    
-    if not os.path.exists(csv_path):
-        print(f"Warning: Tags file not found at {csv_path}")
-        TAGS_CACHE_LOADED = True
-        return
-    
-    print("Loading tags into memory...")
-    start_time = time.time()
-    
-    tags_by_category = {}
-    
-    with open(csv_path, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            category = row['category']
-            tag_name = row['name']
-            post_count = int(row['post_count'])
-            
-            if category not in tags_by_category:
-                tags_by_category[category] = []
-            
-            tags_by_category[category].append({
-                'name': tag_name,
-                'post_count': post_count
-            })
-    
-    for category in tags_by_category:
-        tags_by_category[category].sort(key=lambda x: x['post_count'], reverse=True)
-    
-    TAGS_CACHE = tags_by_category
-    TAGS_CACHE_LOADED = True
-    
-    elapsed = time.time() - start_time
-    total_tags = sum(len(tags) for tags in TAGS_CACHE.values())
-    print(f"Loaded {total_tags} tags in {elapsed:.2f} seconds ({len(TAGS_CACHE)} categories)")
+# Cache de tags removido en favor de SQLite
+# from utils.db import get_tags_by_category
 
 # Almacenar estados de generación
 generation_status = {}
@@ -470,10 +425,8 @@ def create_api_blueprint(app):
     @api_bp.route('/api/tags/<category>')
     @api_login_required(app)
     def get_tags(category):
-        """Obtener tags filtrados por categoría"""
+        """Obtener tags filtrados por categoría usando SQLite"""
         try:
-            load_tags_cache()
-            
             if category == 'Natural-language enrichment':
                 return jsonify({"success": True, "tags": []})
             
@@ -484,21 +437,13 @@ def create_api_blueprint(app):
             
             excluded_tags = request.args.get('excluded', '').split(',')
             excluded_tags = [tag.strip() for tag in excluded_tags if tag.strip()]
-            excluded_set = set(excluded_tags)
             
-            if csv_category not in TAGS_CACHE:
-                return jsonify({"success": True, "tags": []})
-            
-            tags = [
-                tag for tag in TAGS_CACHE[csv_category]
-                if tag['name'] not in excluded_set
-            ]
-            
-            tags = tags[:40]
+            from utils.db import get_tags_by_category
+            tags = get_tags_by_category(csv_category, limit=40, excluded_tags=excluded_tags)
             
             return jsonify({
                 "success": True,
-                "tags": [tag['name'] for tag in tags]
+                "tags": tags
             })
         except Exception as e:
             traceback.print_exc()
